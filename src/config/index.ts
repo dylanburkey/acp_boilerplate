@@ -10,6 +10,7 @@ export interface Config {
   // Core configuration
   gameApiKey: string;
   whitelistedWalletPrivateKey: string;
+  whitelistedWalletEntityId: number;
   agentWalletAddress: string;
   
   // Service configuration
@@ -18,6 +19,9 @@ export interface Config {
   apiEndpoint: string;
   apiKey?: string;
   servicePrice: number;
+  
+  // Optional AI/LangChain integration
+  openaiApiKey?: string;
   
   // ACP configuration
   acpRpcUrl: string;
@@ -35,8 +39,9 @@ export interface Config {
   jobExpirationHours: number;
   enableJobExpiration: boolean;
   
-  // Environment
+  // Environment & Network
   environment: 'sandbox' | 'production';
+  network: 'base' | 'sepolia';
   sandboxTransactionCount: number;
   
   // Logging
@@ -61,6 +66,7 @@ function validateConfig(): void {
   const required = [
     'GAME_API_KEY',
     'WHITELISTED_WALLET_PRIVATE_KEY',
+    'WHITELISTED_WALLET_ENTITY_ID',
     'AGENT_WALLET_ADDRESS',
     'SERVICE_NAME',
     'SERVICE_DESCRIPTION',
@@ -87,6 +93,7 @@ export function loadConfig(): Config {
     // Core configuration
     gameApiKey: process.env.GAME_API_KEY!,
     whitelistedWalletPrivateKey: process.env.WHITELISTED_WALLET_PRIVATE_KEY!,
+    whitelistedWalletEntityId: parseInt(process.env.WHITELISTED_WALLET_ENTITY_ID || '1'),
     agentWalletAddress: process.env.AGENT_WALLET_ADDRESS!,
     
     // Service configuration
@@ -95,6 +102,9 @@ export function loadConfig(): Config {
     apiEndpoint: process.env.API_ENDPOINT!,
     apiKey: process.env.API_KEY,
     servicePrice: parseFloat(process.env.SERVICE_PRICE || '0.001'),
+    
+    // Optional AI/LangChain integration
+    openaiApiKey: process.env.OPENAI_API_KEY,
     
     // ACP configuration
     acpRpcUrl: process.env.ACP_RPC_URL || 'https://base.llamarpc.com',
@@ -126,8 +136,9 @@ export function loadConfig(): Config {
     jobExpirationHours: parseInt(process.env.JOB_EXPIRATION_HOURS || '24'),
     enableJobExpiration: process.env.ENABLE_JOB_EXPIRATION !== 'false',
     
-    // Environment
+    // Environment & Network
     environment: (process.env.ENVIRONMENT || 'sandbox') as 'sandbox' | 'production',
+    network: (process.env.NETWORK || 'base') as 'base' | 'sepolia',
     sandboxTransactionCount: parseInt(process.env.SANDBOX_TRANSACTION_COUNT || '0')
   };
 }

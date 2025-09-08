@@ -11,7 +11,8 @@
     "test": "jest",
     "lint": "eslint . --ext .ts",
     "typecheck": "tsc --noEmit",
-    "setup": "pnpm install && cp .env.example .env"
+    "setup": "pnpm install && cp .env.example .env",
+    "validate": "node scripts/validate-setup.js"
   },
   "keywords": [
     "ACP",
@@ -28,7 +29,13 @@
     "axios": "^1.7.9",
     "dotenv": "^16.4.7",
     "ethers": "^6.13.4",
-    "winston": "^3.17.0"
+    "winston": "^3.17.0",
+    "viem": "^2.28.2"
+  },
+  "optionalDependencies": {
+    "@langchain/openai": "^0.0.14",
+    "langchain": "^0.1.25",
+    "@langchain/core": "^0.1.48"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",

@@ -62,8 +62,6 @@ class AcpIntegration {
   /** Flag to control the main processing loop */
   private isRunning = false;
 
-  /** Session key ID for gas-free transaction management */
-  private readonly sessionEntityKeyId = 1;
 
   /**
    * Constructs a new ACP Integration instance.
@@ -111,11 +109,17 @@ class AcpIntegration {
       // The contract client manages session keys which allow the agent
       // to perform transactions without holding ETH for gas
       Logger.info('Initializing ACP Contract Client...');
+      // Select network configuration based on environment
+      const networkConfig = baseAcpConfig; // Default to base mainnet
+      // Note: For testnet development, you can import baseSepoliaAcpConfig if needed
+      // import { baseSepoliaAcpConfig } from '@virtuals-protocol/acp-node';
+      // const networkConfig = config.network === 'sepolia' ? baseSepoliaAcpConfig : baseAcpConfig;
+      
       this.acpContractClient = await AcpContractClient.build(
         config.whitelistedWalletPrivateKey as `0x${string}`,
-        this.sessionEntityKeyId,
+        config.whitelistedWalletEntityId,
         config.agentWalletAddress as `0x${string}`,
-        baseAcpConfig // Use base chain configuration
+        networkConfig
       );
 
       // Initialize the main ACP Client with event callbacks

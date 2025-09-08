@@ -79,6 +79,18 @@ export class MathAgentService implements IAgentService {
     // Service is always ready for math operations
     return true;
   }
+  
+  validateRequestScope(request: AgentRequest): boolean {
+    // Basic validation
+    if (!request.jobId || !request.params) {
+      return false;
+    }
+    
+    // Only accept math operations
+    const operation = request.params.operation;
+    const allowedOperations = ['add', 'subtract', 'multiply', 'divide'];
+    return allowedOperations.includes(operation);
+  }
 }
 
 /**
@@ -144,17 +156,80 @@ export class DataAnalysisAgentService implements IAgentService {
   async validateService(): Promise<boolean> {
     return true;
   }
+  
+  validateRequestScope(request: AgentRequest): boolean {
+    // Basic validation
+    if (!request.jobId || !request.params) {
+      return false;
+    }
+    
+    // Only accept requests with data arrays
+    const data = request.params.data;
+    return Array.isArray(data) && data.every(item => typeof item === 'number');
+  }
+}
+
+/**
+ * AI-Powered Agent using LangChain
+ * Demonstrates integration with OpenAI for intelligent responses
+ */
+export class AIAgentService implements IAgentService {
+  private langChainService: any;
+  
+  constructor() {
+    // Dynamically import LangChain service to handle optional dependencies
+    this.initializeLangChain();
+  }
+  
+  private async initializeLangChain() {
+    try {
+      const { LangChainAgentService } = await import('../src/services/langChainAgentService');
+      this.langChainService = new LangChainAgentService();
+    } catch (error) {
+      console.warn('LangChain service not available. Install with: pnpm install @langchain/openai langchain @langchain/core');
+    }
+  }
+  
+  async processRequest(request: AgentRequest): Promise<AgentResponse> {
+    if (this.langChainService) {
+      return await this.langChainService.processRequest(request);
+    }
+    
+    // Fallback if LangChain is not available
+    return {
+      success: true,
+      data: {
+        message: 'AI service not configured. Please add OPENAI_API_KEY to your .env file.',
+        originalRequest: request.params
+      }
+    };
+  }
+  
+  async validateService(): Promise<boolean> {
+    return this.langChainService ? await this.langChainService.validateService() : true;
+  }
+  
+  validateRequestScope(request: AgentRequest): boolean {
+    return this.langChainService ? this.langChainService.validateRequestScope(request) : true;
+  }
 }
 
 /**
  * To use these examples:
  * 
- * 1. Import in src/index.ts:
+ * 1. For Math Agent - Import in src/index.ts:
  *    import { MathAgentService } from '../examples/simple-agent';
- * 
- * 2. Replace the service initialization:
  *    this.agentService = new MathAgentService();
  * 
- * 3. Run your agent:
+ * 2. For AI Agent - Import in src/index.ts:
+ *    import { AIAgentService } from '../examples/simple-agent';
+ *    this.agentService = new AIAgentService();
+ *    // Add OPENAI_API_KEY to your .env file
+ * 
+ * 3. For Data Analysis - Import in src/index.ts:
+ *    import { DataAnalysisAgentService } from '../examples/simple-agent';
+ *    this.agentService = new DataAnalysisAgentService();
+ * 
+ * 4. Run your agent:
  *    pnpm run dev
  */

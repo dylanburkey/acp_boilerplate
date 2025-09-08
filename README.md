@@ -17,33 +17,43 @@ The Agent Commerce Protocol (ACP) is a decentralized framework that powers AI ag
 
 ## 🚀 Quick Start
 
-Get your agent running in 5 minutes:
+Get your agent running in 5 minutes with our plug-and-play setup:
 
 ```bash
 # 1. Clone this repository
 git clone https://github.com/dylanburkey/acp_boilerplate.git
 cd acp_boilerplate
 
-# 2. Install dependencies (PNPM recommended)
-pnpm install
-# or npm install
+# 2. Run automated setup
+pnpm run setup
 
-# 3. Set up configuration
-cp .env.example .env
-# Edit .env with your values
+# 3. Configure your agent (edit .env file)
+# Add your GAME_API_KEY, wallet details, and service info
 
-# 4. Run your agent
+# 4. Validate your setup
+pnpm run validate
+
+# 5. Start your agent
 pnpm run dev
 ```
+
+### 🧪 Zero-Config Testing
+```bash
+# Test with mock buyer (no real blockchain transactions)
+pnpm run dev:mock
+```
+
+🔌 **For complete step-by-step instructions, see [PLUG-AND-PLAY-SETUP.md](PLUG-AND-PLAY-SETUP.md)**
 
 ## 📋 Prerequisites
 
 Before you begin, ensure you have:
 
 1. **Node.js** (v18 or higher)
-2. **GAME API Key** from [Virtuals Console](https://console.virtuals.io)
+2. **GAME API Key** from [Virtuals Console](https://console.virtuals.io)  
 3. **Whitelisted Wallet** registered on Virtuals Protocol (no ETH required - Virtuals handles gas fees!)
-4. **Your API Endpoint** (or custom service logic)
+4. **Entity ID** from your agent registration (provided when you register)
+5. **Your API Endpoint** (or use our built-in service templates)
 
 ## 🔧 Configuration
 
@@ -58,6 +68,9 @@ GAME_API_KEY=your_game_api_key_here
 # Private key for whitelisted wallet (no ETH needed - gas handled by Virtuals)
 WHITELISTED_WALLET_PRIVATE_KEY=your_wallet_private_key_here
 
+# Entity ID from agent registration (critical identifier)
+WHITELISTED_WALLET_ENTITY_ID=1
+
 # Your agent's wallet address (receives payments)
 AGENT_WALLET_ADDRESS=your_agent_wallet_address_here
 
@@ -67,11 +80,21 @@ SERVICE_DESCRIPTION="AI-powered service for..."
 API_ENDPOINT=https://your-api-endpoint.com
 ```
 
-### Optional Settings
+### Optional AI Integration
+
+For intelligent AI-powered responses, add:
+
+```env
+# Optional: OpenAI integration for LangChain
+OPENAI_API_KEY=sk-your_openai_key_here
+```
+
+### Other Optional Settings
 
 See `.env.example` for all available configuration options including:
 - Performance tuning
-- Gas price settings
+- SLA and job expiration settings
+- Sandbox/production environment
 - Logging levels
 - Mock testing
 - State management
@@ -84,7 +107,8 @@ src/
 ├── config/                  # Configuration management
 │   └── index.ts
 ├── services/               # Your agent's logic
-│   └── agentService.ts
+│   ├── agentService.ts     # Core service interfaces
+│   └── langChainAgentService.ts # AI-powered service (optional)
 ├── utils/                  # Core utilities
 │   ├── jobQueue.ts         # Job queue management
 │   ├── transactionMonitor.ts # Transaction monitoring
