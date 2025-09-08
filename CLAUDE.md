@@ -25,6 +25,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is an ACP (Agent Commerce Protocol) integration boilerplate for connecting AI agents to the Virtuals Protocol network on Base chain. The agent accepts paid requests from buyers, processes them, and returns results through blockchain transactions.
 
+### Latest Updates (v0.2.9)
+- Uses `@virtuals-protocol/game-acp-plugin` v0.2.9
+- Uses `@virtuals-protocol/acp-node` v0.2.0-beta.10
+- Full support for job processing, delivery, and blockchain integration
+- Session key support for gas-efficient transactions
+
 ### Core Flow
 1. **AcpIntegration** (src/index.ts) - Main orchestrator that initializes ACP client, monitors for jobs, and manages the processing loop
 2. **AgentService** (src/services/agentService.ts) - Defines the agent's functionality. Two implementations:

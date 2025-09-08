@@ -156,5 +156,5 @@ export class DataAnalysisAgentService implements IAgentService {
  *    this.agentService = new MathAgentService();
  * 
  * 3. Run your agent:
- *    npm run dev
+ *    pnpm run dev
  */

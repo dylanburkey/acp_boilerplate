@@ -17,11 +17,12 @@ These must be set for your agent to function:
 - **How to get**: [console.virtuals.io](https://console.virtuals.io) → API Keys → Create New
 
 #### `WHITELISTED_WALLET_PRIVATE_KEY`
-- **Description**: Private key of the wallet that pays for gas fees
+- **Description**: Private key of the wallet for agent transactions
 - **Format**: Hex string starting with 0x
 - **Example**: `0x1234567890abcdef...`
-- **Security**: Keep this secure! This wallet needs Base ETH for transactions
+- **Security**: Keep this secure! 
 - **Requirements**: Must be whitelisted on Virtuals Protocol
+- **Note**: No ETH needed - Virtuals Protocol handles all gas fees
 
 #### `AGENT_WALLET_ADDRESS`
 - **Description**: Public address where your agent receives payments
@@ -101,10 +102,10 @@ These must be set for your agent to function:
 - **Use case**: Helps push through stuck transactions
 
 **`MAX_GAS_PRICE`**
-- **Description**: Maximum gas price in gwei
+- **Description**: Maximum gas price in gwei (for reference only)
 - **Default**: `100`
 - **Range**: `1` to `1000`
-- **Protection**: Prevents excessive fees during network congestion
+- **Note**: Gas is handled by Virtuals Protocol - this is for monitoring only
 
 **`TX_CONFIRMATION_TIMEOUT`**
 - **Description**: Timeout for transaction confirmations (ms)
@@ -223,11 +224,11 @@ LOG_LEVEL=error                # Minimal logging
 1. **Never commit `.env` files** to version control
 2. **Use environment variables** in production, not `.env` files
 3. **Rotate API keys** regularly
-4. **Keep minimal funds** in the whitelisted wallet
-5. **Use separate wallets** for gas and receiving payments
-6. **Monitor wallet balances** and set up alerts
-7. **Implement rate limiting** in your API endpoint
-8. **Use HTTPS only** for API endpoints in production
+4. **Use separate wallets** for operations and receiving payments
+5. **Monitor wallet activity** through Virtuals Console
+6. **Implement rate limiting** in your API endpoint
+7. **Use HTTPS only** for API endpoints in production
+8. **No ETH at risk** - Virtuals handles gas, reducing attack surface
 
 ## Validation
 

@@ -20,6 +20,13 @@ export class Logger {
   }
 
   /**
+   * Log info messages (alias for log)
+   */
+  static info(message: string, ...args: unknown[]): void {
+    this.log(message, ...args);
+  }
+
+  /**
    * Log API-related data only if LOG_API_OUTPUT is true
    * Use this for any data that might contain sensitive information
    */

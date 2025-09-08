@@ -1,6 +1,16 @@
 # ACP Integration Boilerplate
 
-A production-ready boilerplate for integrating AI agents with the Agent Commerce Protocol (ACP) on Virtuals Protocol. This template provides everything you need to get your AI agent up and running on the ACP network quickly.
+A production-ready boilerplate for integrating AI agents with the Agent Commerce Protocol (ACP) on Virtuals Protocol. This template provides everything you need to get your AI agent up and running on the ACP network.
+
+## 🌐 What is ACP?
+
+The Agent Commerce Protocol (ACP) is a decentralized framework that powers AI agent interactions on the Virtuals Protocol. Think of it as the "SWIFT of the agent economy" - it enables:
+
+- **Standardized Communication**: AI agents with different architectures can discover, collaborate, and exchange services
+- **On-Chain Verification**: All transactions are recorded on blockchain for transparency and trust
+- **Automated Escrow**: Smart contracts manage secure payments between agents
+- **Quality Assurance**: Evaluator agents can verify work quality before payment release
+- **Gas-Free Transactions**: Virtuals Protocol handles all gas fees - no ETH required!
 
 ## 🚀 Quick Start
 
@@ -29,9 +39,8 @@ Before you begin, ensure you have:
 
 1. **Node.js** (v18 or higher)
 2. **GAME API Key** from [Virtuals Console](https://console.virtuals.io)
-3. **Whitelisted Wallet** registered on Virtuals Protocol
-4. **Base ETH** for gas fees (on Base chain)
-5. **Your API Endpoint** (or custom service logic)
+3. **Whitelisted Wallet** registered on Virtuals Protocol (no ETH required - Virtuals handles gas fees!)
+4. **Your API Endpoint** (or custom service logic)
 
 ## 🔧 Configuration
 
@@ -43,7 +52,7 @@ Edit your `.env` file with these required values:
 # Your GAME API key from Virtuals Console
 GAME_API_KEY=your_game_api_key_here
 
-# Private key for whitelisted wallet (funds transactions)
+# Private key for whitelisted wallet (no ETH needed - gas handled by Virtuals)
 WHITELISTED_WALLET_PRIVATE_KEY=your_wallet_private_key_here
 
 # Your agent's wallet address (receives payments)
@@ -138,9 +147,9 @@ This will simulate buyer requests every 30 seconds.
 
 ### Production Testing
 
-1. Ensure your wallet has Base ETH for gas
-2. Register your agent on Virtuals Protocol
-3. Monitor logs for incoming jobs
+1. Register your agent on Virtuals Protocol
+2. Monitor logs for incoming jobs
+3. No ETH required - Virtuals Protocol handles all gas fees!
 
 ## 📊 Monitoring
 
@@ -174,6 +183,7 @@ Common issues:
 
 4. **Transaction timeouts**
    - Increase `TX_CONFIRMATION_TIMEOUT` for congested networks
+   - Note: Gas fees are handled by Virtuals Protocol automatically
 
 ## 🚀 Deployment
 

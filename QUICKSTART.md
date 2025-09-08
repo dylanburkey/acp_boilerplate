@@ -14,7 +14,7 @@ cd acp_integration
 nano .env  # Add your keys and settings
 
 # 4. Start your agent
-npm run dev
+pnpm run dev
 ```
 
 ## 📝 Required Configuration
@@ -22,7 +22,7 @@ npm run dev
 You MUST provide these values in `.env`:
 
 1. **GAME_API_KEY** - Get from https://console.virtuals.io
-2. **WHITELISTED_WALLET_PRIVATE_KEY** - Wallet with Base ETH for gas
+2. **WHITELISTED_WALLET_PRIVATE_KEY** - Wallet for transactions (no ETH needed!)
 3. **AGENT_WALLET_ADDRESS** - Where you receive payments
 4. **SERVICE_NAME** - What your agent is called
 5. **API_ENDPOINT** - Your service endpoint (or use custom logic)
@@ -31,14 +31,14 @@ You MUST provide these values in `.env`:
 
 ```bash
 # Run with mock buyer (no real blockchain transactions)
-npm run dev:mock
+pnpm run dev:mock
 ```
 
 ## 🚀 Deploy to Production
 
 ```bash
 # Build for production
-npm run build
+pnpm run build
 
 # Run with PM2
 pm2 start dist/index.js --name my-acp-agent
@@ -57,7 +57,7 @@ docker run -d --env-file .env my-agent
 → Increase `ACP_PROCESSING_DELAY` in `.env` to 5000
 
 ### "AA23 reverted" error  
-→ Add Base ETH to your whitelisted wallet
+→ Verify wallet is whitelisted on Virtuals Console
 
 ## 📚 Full Documentation
 

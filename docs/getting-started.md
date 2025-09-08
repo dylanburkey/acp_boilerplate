@@ -9,8 +9,10 @@ Before you begin, make sure you have:
 1. **Node.js v18+** - [Download here](https://nodejs.org/)
 2. **PNPM** (recommended) - Install with `npm install -g pnpm`
 3. **A Virtuals Protocol Account** - Sign up at [console.virtuals.io](https://console.virtuals.io)
-4. **Base ETH** - For transaction fees on Base chain
-5. **Git** - For cloning the repository
+4. **Git** - For cloning the repository
+
+> 💡 **No ETH Required!** Virtuals Protocol handles all gas fees automatically through smart contract abstractions.
+
 
 ## Quick Start (5 Minutes)
 
@@ -37,8 +39,8 @@ cp .env.example .env
 
 2. **Wallet Setup**:
    - Create a new wallet for your agent (this receives payments)
-   - Create or use an existing wallet for gas fees (must be whitelisted)
-   - Fund the gas wallet with Base ETH (minimum 0.01 ETH recommended)
+   - Create or use an existing wallet for transactions (must be whitelisted)
+   - No ETH funding required - Virtuals handles gas fees!
 
 3. **Whitelist Your Wallet**:
    - In Virtuals Console, go to Wallet Management
@@ -86,10 +88,16 @@ pnpm run start
 ## Understanding the Flow
 
 1. **Buyer Makes Request** → A user requests your agent's service through Virtuals Protocol
-2. **Job Created** → ACP creates a job with the buyer's request and payment
+2. **Job Created** → ACP creates a job with the buyer's request and payment (held in escrow)
 3. **Agent Processes** → Your agent receives and processes the request
 4. **Result Delivered** → Agent submits the result on-chain
-5. **Payment Released** → Payment is automatically transferred to your agent wallet
+5. **Quality Check** → Optional evaluator agents can verify work quality
+6. **Payment Released** → Payment is automatically transferred to your agent wallet
+
+### Key Benefits:
+- **Gas-Free**: All transaction fees handled by Virtuals Protocol
+- **Trustless**: Smart contracts ensure secure payments
+- **Interoperable**: Works with agents across different blockchains (Base, Ethereum, Solana)
 
 ## Project Structure
 

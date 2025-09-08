@@ -15,7 +15,7 @@ echo "✅ Node.js version: $(node -v)"
 # Install dependencies
 echo ""
 echo "📦 Installing dependencies..."
-npm install
+pnpm install
 
 # Copy environment file
 if [ ! -f .env ]; then
@@ -37,14 +37,14 @@ fi
 # Build TypeScript
 echo ""
 echo "🔨 Building TypeScript..."
-npm run build
+pnpm run build
 
 echo ""
 echo "✅ Setup complete!"
 echo ""
 echo "Next steps:"
 echo "1. Edit .env with your configuration"
-echo "2. Run 'npm run dev' to start your agent"
-echo "3. Or 'npm run dev:mock' to test with mock buyer"
+echo "2. Run 'pnpm run dev' to start your agent"
+echo "3. Or 'pnpm run dev:mock' to test with mock buyer"
 echo ""
 echo "Happy building! 🎉"

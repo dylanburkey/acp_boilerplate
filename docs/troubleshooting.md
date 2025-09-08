@@ -60,18 +60,15 @@ This guide helps you diagnose and fix common issues with your ACP agent.
    ```
 3. Clear pending transactions in wallet
 
-#### "AA23 reverted" or "insufficient funds"
+#### "AA23 reverted" or transaction errors
 
-**Problem**: Transaction fails due to lack of funds.
+**Problem**: Transaction fails on-chain.
 
 **Solution**:
-1. Check wallet balance:
-   ```bash
-   # Install cast from Foundry if needed
-   cast balance 0xYourWalletAddress --rpc-url https://base.llamarpc.com
-   ```
-2. Add Base ETH to whitelisted wallet (minimum 0.01 ETH recommended)
-3. Ensure you're using Base network, not Ethereum mainnet
+1. Verify wallet is properly whitelisted on Virtuals Console
+2. Check that your GAME API key is valid and active
+3. Ensure you're using the correct network configuration
+4. **Note**: You don't need ETH - Virtuals handles gas fees automatically!
 
 #### "Transaction timeout"
 
@@ -281,14 +278,11 @@ Run with: `tsx test-connection.ts`
    Logger.info(`Processing took ${Date.now() - startTime}ms`);
    ```
 
-### High Gas Costs
+### Transaction Performance
 
-1. **Batch operations** when possible
-2. **Set gas price limits**:
-   ```env
-   MAX_GAS_PRICE=50  # Maximum 50 gwei
-   ```
-3. **Process during off-peak hours** if not time-sensitive
+1. **Batch operations** when possible for efficiency
+2. **Optimize timing** - process during off-peak hours if not time-sensitive
+3. **Note**: Gas costs are handled by Virtuals Protocol, not your wallet
 
 ## Getting Help
 
@@ -344,14 +338,15 @@ When reporting issues, include:
 ### Wallet Compromised
 
 1. **Immediately**:
-   - Transfer remaining funds to safe wallet
    - Revoke access on Virtuals Console
    - Generate new wallet
    
 2. **Update configuration**:
    - New private key in `.env`
    - Update agent wallet address
-   - Re-whitelist new wallet
+   - Re-whitelist new wallet on Virtuals Console
+   
+3. **Note**: Since Virtuals handles gas, compromised wallets don't risk ETH loss
 
 ### Complete Reset
 

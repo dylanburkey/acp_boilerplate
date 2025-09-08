@@ -1,5 +1,5 @@
 /**
- * Transaction monitoring utility for debugging ACP transaction issues
+ * Instance-based Transaction Monitor for ACP transactions
  */
 
 import { Logger } from './logger';
@@ -13,9 +13,9 @@ export interface TransactionError {
 }
 
 export class TransactionMonitor {
-  private static errors: TransactionError[] = [];
+  private errors: TransactionError[] = [];
 
-  static logTransactionError(jobId: string, error: unknown): void {
+  logTransactionError(jobId: string, error: unknown): void {
     const errorObj = error as { message?: string; details?: string; shortMessage?: string };
     const errorMessage = errorObj.message || String(error);
 
@@ -56,11 +56,11 @@ export class TransactionMonitor {
     }
   }
 
-  static getRecentErrors(count: number = 10): TransactionError[] {
+  getRecentErrors(count: number = 10): TransactionError[] {
     return this.errors.slice(-count);
   }
 
-  static getErrorSummary(): { total: number; uniqueJobs: number; commonError?: string } {
+  getErrorSummary(): { total: number; uniqueJobs: number; commonError?: string } {
     const uniqueJobs = new Set(this.errors.map((e) => e.jobId)).size;
 
     // Find most common error
@@ -84,7 +84,7 @@ export class TransactionMonitor {
   /**
    * Monitor a transaction and log its status
    */
-  static async monitorTransaction(tx: any, type: string, jobId: string): Promise<void> {
+  async monitorTransaction(tx: any, type: string, jobId: string): Promise<void> {
     try {
       Logger.info(`[TX Monitor] ${type} transaction for job ${jobId}: ${tx.hash}`);
       const receipt = await tx.wait();
@@ -103,7 +103,7 @@ export class TransactionMonitor {
   /**
    * Print a summary of transaction errors
    */
-  static printSummary(): void {
+  printSummary(): void {
     const summary = this.getErrorSummary();
     Logger.info('=== Transaction Monitor Summary ===');
     Logger.info(`Total errors: ${summary.total}`);
