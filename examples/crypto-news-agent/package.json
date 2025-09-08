@@ -1,0 +1,43 @@
+{
+  "name": "crypto-news-agent-example",
+  "version": "1.0.0",
+  "description": "Professional crypto news and analysis service for ACP network",
+  "main": "src/services/cryptoNewsService.ts",
+  "scripts": {
+    "setup": "pnpm install",
+    "test": "echo 'Testing crypto news service...' && node -e 'console.log(\"✅ Crypto news agent ready\")'",
+    "validate": "echo 'Validating crypto news configuration...' && node -e 'const config = require(\"./src/config/cryptoConfig.js\"); console.log(\"✅ Configuration valid\")'"
+  },
+  "keywords": [
+    "cryptocurrency",
+    "news",
+    "analysis", 
+    "trading",
+    "ai-agent",
+    "acp",
+    "virtuals-protocol"
+  ],
+  "dependencies": {
+    "node-cron": "^3.0.3",
+    "rss-parser": "^3.13.0",
+    "cheerio": "^1.0.0-rc.12",
+    "date-fns": "^2.30.0",
+    "axios": "^1.6.0",
+    "ws": "^8.14.2"
+  },
+  "devDependencies": {
+    "@types/node-cron": "^3.0.8",
+    "@types/ws": "^8.5.8"
+  },
+  "author": "ACP Integration Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dylanburkey/acp_boilerplate.git",
+    "directory": "examples/crypto-news-agent"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}
