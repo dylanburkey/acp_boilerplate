@@ -45,6 +45,8 @@ pnpm run dev:mock
 
 🔌 **For complete step-by-step instructions, see [PLUG-AND-PLAY-SETUP.md](PLUG-AND-PLAY-SETUP.md)**
 
+**New to AI agents or business automation?** 👉 Start with our [Non-Developer Guide](docs/NON-DEVELOPER-GUIDE.md) - no coding required!
+
 ## 📋 Prerequisites
 
 Before you begin, ensure you have:
@@ -240,6 +242,32 @@ COPY . .
 RUN pnpm run build
 CMD ["node", "dist/index.js"]
 ```
+
+## 📚 Complete Documentation Suite
+
+### 🚀 **Quick Start (Choose Your Path)**
+- **Non-Developers:** [Non-Developer Guide](docs/NON-DEVELOPER-GUIDE.md) - Complete business guide with no coding required
+- **Visual Learners:** [Visual Setup Guide](docs/VISUAL-SETUP-GUIDE.md) - Step-by-step with screenshot descriptions  
+- **Developers:** [Plug-and-Play Setup](PLUG-AND-PLAY-SETUP.md) - Technical quick start
+
+#### 💼 **Business & Strategy** ⭐ **Most Popular**
+- [Business Use Cases & Success Stories](docs/BUSINESS-USE-CASES.md) - Real examples earning $6K-12K/month
+- [Business Description Templates](docs/business-description-templates.md) - Write compelling service descriptions
+- [Graduation Guide](docs/graduation-guide.md) - Sandbox to production roadmap
+
+### 🛠️ **Technical Implementation**
+- [Custom Logic Implementation](docs/CUSTOM-LOGIC-GUIDE.md) - Add your business logic (beginner-friendly)
+- [Getting Started Guide](docs/getting-started.md) - Technical setup details
+- [Configuration Options](docs/configuration.md) - All environment variables
+
+### 🆘 **Support & Troubleshooting**
+- [Non-Technical Troubleshooting](docs/NON-TECHNICAL-TROUBLESHOOTING.md) - Fix issues without coding ⭐
+- [Technical Troubleshooting](docs/troubleshooting.md) - Developer-focused solutions
+- [ACP Protocol Overview](docs/ACP-OVERVIEW.md) - Understanding the network
+
+**📚 [Complete Documentation Index](docs/README.md) - Find the perfect guide for your experience level**
+
+---
 
 ## 📚 API Reference
 
