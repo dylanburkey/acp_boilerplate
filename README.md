@@ -8,18 +8,19 @@ Get your agent running in 5 minutes:
 
 ```bash
 # 1. Clone this repository
-git clone https://github.com/your-org/acp-integration-boilerplate.git
-cd acp-integration-boilerplate
+git clone https://github.com/dylanburkey/acp_boilerplate.git
+cd acp_boilerplate
 
-# 2. Install dependencies
-npm install
+# 2. Install dependencies (PNPM recommended)
+pnpm install
+# or npm install
 
 # 3. Set up configuration
 cp .env.example .env
 # Edit .env with your values
 
 # 4. Run your agent
-npm run dev
+pnpm run dev
 ```
 
 ## 📋 Prerequisites
@@ -130,7 +131,7 @@ this.agentService = new CustomAgentService();
 
 ```bash
 # Enable mock buyer for testing
-npm run dev:mock
+pnpm run dev:mock
 ```
 
 This will simulate buyer requests every 30 seconds.
@@ -180,7 +181,7 @@ Common issues:
 
 ```bash
 # Build the project
-npm run build
+pnpm run build
 
 # Run with PM2 (recommended)
 pm2 start dist/index.js --name acp-agent
@@ -193,10 +194,11 @@ pm2 start dist/index.js --name acp-agent
 ```dockerfile
 FROM node:18-alpine
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
+RUN npm install -g pnpm
+COPY package*.json pnpm-lock.yaml* ./
+RUN pnpm install --frozen-lockfile --prod
 COPY . .
-RUN npm run build
+RUN pnpm run build
 CMD ["node", "dist/index.js"]
 ```
 
