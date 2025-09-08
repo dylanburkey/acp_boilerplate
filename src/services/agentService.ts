@@ -43,6 +43,15 @@ export interface IAgentService {
    * @returns {Promise<boolean>} True if the service is ready, false otherwise
    */
   validateService(): Promise<boolean>;
+  
+  /**
+   * Validates if a request matches the agent's service scope.
+   * Helps prevent "mission drift" by ensuring requests align with agent capabilities.
+   * 
+   * @param {AgentRequest} request - The request to validate
+   * @returns {boolean} True if request is within scope, false otherwise
+   */
+  validateRequestScope(request: AgentRequest): boolean;
 }
 
 /**
@@ -78,6 +87,9 @@ export interface AgentResponse {
 
   /** Error message explaining failure (only if success is false) */
   error?: string;
+  
+  /** Error type for better error handling and debugging */
+  errorType?: 'VALIDATION_ERROR' | 'PROCESSING_ERROR' | 'SCOPE_ERROR' | 'SERVICE_ERROR' | 'TIMEOUT_ERROR';
 
   /** Additional metadata about the processing */
   metadata?: Record<string, any>;
@@ -109,21 +121,45 @@ export class DefaultAgentService implements IAgentService {
    * Processes a request by forwarding it to the configured API endpoint.
    *
    * The method:
-   * 1. Constructs a request payload with job details
-   * 2. Sends POST request to the configured API endpoint
-   * 3. Handles response and errors appropriately
-   * 4. Returns formatted response for ACP delivery
+   * 1. Validates request scope to prevent mission drift
+   * 2. Constructs a request payload with job details
+   * 3. Sends POST request to the configured API endpoint
+   * 4. Handles response and errors appropriately
+   * 5. Returns formatted response for ACP delivery
    *
    * @param {AgentRequest} request - The request from the buyer
    * @returns {Promise<AgentResponse>} The processed response
    */
   async processRequest(request: AgentRequest): Promise<AgentResponse> {
+    const startTime = Date.now();
+    
     try {
       this.logger.info(`Processing request for job ${request.jobId}`);
 
+      // First validate request scope to prevent mission drift
+      if (!this.validateRequestScope(request)) {
+        return {
+          success: false,
+          error: 'Request outside service scope - agent cannot process this type of request',
+          errorType: 'SCOPE_ERROR',
+          metadata: {
+            processingTime: `${Date.now() - startTime}ms`,
+            withinScope: false
+          }
+        };
+      }
+
       // Validate required configuration
       if (!config.apiEndpoint) {
-        throw new Error('API_ENDPOINT not configured');
+        return {
+          success: false,
+          error: 'API_ENDPOINT not configured',
+          errorType: 'SERVICE_ERROR',
+          metadata: {
+            processingTime: `${Date.now() - startTime}ms`,
+            withinScope: true
+          }
+        };
       }
 
       // Construct the request payload
@@ -138,17 +174,19 @@ export class DefaultAgentService implements IAgentService {
         this.logger.logApiData('Sending request to API:', payload);
       }
 
-      // Make the API request with appropriate headers and timeout
+      // Make the API request with improved error handling
       const response: AxiosResponse = await axios.post(
         config.apiEndpoint,
         payload,
         {
           headers: {
             'Content-Type': 'application/json',
+            'User-Agent': `ACP-Agent/${config.serviceName}`,
             // Add authorization header if API key is configured
             ...(config.apiKey ? {'Authorization': `Bearer ${config.apiKey}`} : {}),
           },
           timeout: this.apiTimeout,
+          validateStatus: (status) => status < 500 // Don't reject on client errors
         }
       );
 
@@ -167,36 +205,57 @@ export class DefaultAgentService implements IAgentService {
           processedAt: new Date().toISOString(),
           serviceVersion: '1.0.0',
           statusCode: response.status,
+          processingTime: `${Date.now() - startTime}ms`,
+          withinScope: true
         },
       };
     } catch (error) {
       // Handle and log errors appropriately
       this.logger.error(`Error processing request for job ${request.jobId}:`, error);
 
-      // Extract meaningful error message
+      // Handle different types of errors with proper categorization
       let errorMessage = 'Unknown error occurred';
+      let errorType: AgentResponse['errorType'] = 'PROCESSING_ERROR';
+      
       if (error instanceof AxiosError) {
-        // Handle axios-specific errors
-        if (error.response) {
+        if (error.code === 'ECONNABORTED') {
+          errorMessage = 'Request timeout - API took too long to respond';
+          errorType = 'TIMEOUT_ERROR';
+        } else if (error.response) {
           // Server responded with error status
-          errorMessage = `API error: ${error.response.status} - ${
+          const statusCode = error.response.status;
+          errorMessage = `API error: ${statusCode} - ${
             error.response.data?.message || error.response.statusText
           }`;
+          
+          if (statusCode >= 400 && statusCode < 500) {
+            errorType = 'VALIDATION_ERROR';
+          } else if (statusCode >= 500) {
+            errorType = 'SERVICE_ERROR';
+          }
         } else if (error.request) {
           // Request was made but no response received
-          errorMessage = 'API request failed: No response received';
+          errorMessage = 'API request failed: No response received - service may be unavailable';
+          errorType = 'SERVICE_ERROR';
         } else {
           // Error in request setup
           errorMessage = `API request setup error: ${error.message}`;
+          errorType = 'PROCESSING_ERROR';
         }
       } else if (error instanceof Error) {
         errorMessage = error.message;
+        errorType = 'PROCESSING_ERROR';
       }
 
-      // Return error response
+      // Return error response with type and metadata
       return {
         success: false,
         error: errorMessage,
+        errorType,
+        metadata: {
+          processingTime: `${Date.now() - startTime}ms`,
+          withinScope: true
+        }
       };
     }
   }
@@ -247,6 +306,53 @@ export class DefaultAgentService implements IAgentService {
       return false;
     }
   }
+  
+  /**
+   * Validates if a request is within the agent's service scope.
+   * Override this method in subclasses to implement custom scoping logic.
+   *
+   * This is crucial for preventing "mission drift" where agents process
+   * requests outside their intended capabilities or service description.
+   *
+   * @param {AgentRequest} request - The request to validate
+   * @returns {boolean} True if request is within scope, false otherwise
+   */
+  validateRequestScope(request: AgentRequest): boolean {
+    // Basic validation - ensure request has required fields
+    if (!request.jobId || !request.params) {
+      this.logger.warn(`Request validation failed: Missing jobId or params for job ${request.jobId}`);
+      return false;
+    }
+
+    // Add custom scope validation logic here based on your service capabilities
+    // Example implementations:
+    //
+    // 1. Validate request type:
+    // const requestType = request.params.type;
+    // const allowedTypes = ['text-generation', 'data-analysis', 'translation'];
+    // if (requestType && !allowedTypes.includes(requestType)) {
+    //   this.logger.warn(`Request type '${requestType}' not supported by ${config.serviceName}`);
+    //   return false;
+    // }
+    //
+    // 2. Validate service category:
+    // const category = request.params.category;
+    // if (category && !config.serviceDescription.toLowerCase().includes(category.toLowerCase())) {
+    //   this.logger.warn(`Request category '${category}' outside service scope`);
+    //   return false;
+    // }
+    //
+    // 3. Validate complexity or resource requirements:
+    // const complexity = request.params.complexity || 'medium';
+    // const maxComplexity = process.env.MAX_COMPLEXITY || 'high';
+    // if (this.isComplexityTooHigh(complexity, maxComplexity)) {
+    //   this.logger.warn(`Request complexity '${complexity}' exceeds agent capability`);
+    //   return false;
+    // }
+
+    // Default: accept all requests (implement custom logic above for production use)
+    return true;
+  }
 }
 
 /**
@@ -282,8 +388,23 @@ export class CustomAgentService implements IAgentService {
    * @returns {Promise<AgentResponse>} The processed response
    */
   async processRequest(request: AgentRequest): Promise<AgentResponse> {
+    const startTime = Date.now();
+    
     try {
       this.logger.info(`Processing custom request for job ${request.jobId}`);
+
+      // First validate request scope to prevent mission drift
+      if (!this.validateRequestScope(request)) {
+        return {
+          success: false,
+          error: 'Request outside service scope - agent cannot process this type of request',
+          errorType: 'SCOPE_ERROR',
+          metadata: {
+            processingTime: `${Date.now() - startTime}ms`,
+            withinScope: false
+          }
+        };
+      }
 
       // ================================================================
       // IMPLEMENT YOUR CUSTOM LOGIC HERE
@@ -294,6 +415,11 @@ export class CustomAgentService implements IAgentService {
         return {
           success: false,
           error: 'No parameters provided',
+          errorType: 'VALIDATION_ERROR',
+          metadata: {
+            processingTime: `${Date.now() - startTime}ms`,
+            withinScope: true
+          }
         };
       }
 
@@ -337,15 +463,38 @@ export class CustomAgentService implements IAgentService {
           processedAt: new Date().toISOString(),
           serviceVersion: '1.0.0',
           processingType: requestType || 'default',
+          processingTime: `${Date.now() - startTime}ms`,
+          withinScope: true
         },
       };
     } catch (error) {
-      // Handle errors gracefully
+      // Handle errors gracefully with proper categorization
       this.logger.error(`Error in custom service for job ${request.jobId}:`, error);
+
+      let errorType: AgentResponse['errorType'] = 'PROCESSING_ERROR';
+      let errorMessage = 'Unknown error occurred';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        
+        // Categorize different types of errors
+        if (error.message.includes('timeout') || error.message.includes('TIMEOUT')) {
+          errorType = 'TIMEOUT_ERROR';
+        } else if (error.message.includes('validation') || error.message.includes('invalid')) {
+          errorType = 'VALIDATION_ERROR';
+        } else if (error.message.includes('service') || error.message.includes('connection')) {
+          errorType = 'SERVICE_ERROR';
+        }
+      }
 
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: errorMessage,
+        errorType,
+        metadata: {
+          processingTime: `${Date.now() - startTime}ms`,
+          withinScope: true
+        }
       };
     }
   }
@@ -429,5 +578,60 @@ export class CustomAgentService implements IAgentService {
       this.logger.error('Custom service validation failed:', error);
       return false;
     }
+  }
+  
+  /**
+   * Validates if a request is within the agent's service scope.
+   * Implement custom scoping logic specific to your agent's capabilities.
+   *
+   * This is crucial for preventing "mission drift" where agents process
+   * requests outside their intended capabilities or service description.
+   *
+   * @param {AgentRequest} request - The request to validate
+   * @returns {boolean} True if request is within scope, false otherwise
+   */
+  validateRequestScope(request: AgentRequest): boolean {
+    // Basic validation - ensure request has required fields
+    if (!request.jobId || !request.params) {
+      this.logger.warn(`Request validation failed: Missing jobId or params for job ${request.jobId}`);
+      return false;
+    }
+
+    // Example scope validation for the demo service:
+    const requestType = request.params.type;
+    
+    // Only accept these specific request types for the demo service
+    const allowedTypes = ['echo', 'analyze', 'generate'];
+    
+    if (requestType && !allowedTypes.includes(requestType)) {
+      this.logger.warn(`Request type '${requestType}' not supported by custom agent service`);
+      this.logger.info(`Supported types: ${allowedTypes.join(', ')}`);
+      return false;
+    }
+
+    // Additional validation examples (customize for your agent):
+    //
+    // 1. Validate complexity limits:
+    // const complexity = request.params.complexity || 'medium';
+    // if (complexity === 'ultra-high') {
+    //   this.logger.warn(`Request complexity '${complexity}' exceeds agent capability`);
+    //   return false;
+    // }
+    //
+    // 2. Validate data size limits:
+    // const dataSize = request.params.data?.length || 0;
+    // if (dataSize > 10000) {
+    //   this.logger.warn(`Request data size ${dataSize} exceeds limit`);
+    //   return false;
+    // }
+    //
+    // 3. Validate service category alignment:
+    // const category = request.params.category;
+    // if (category && !config.serviceDescription.toLowerCase().includes(category.toLowerCase())) {
+    //   this.logger.warn(`Request category '${category}' outside service scope`);
+    //   return false;
+    // }
+
+    return true;
   }
 }

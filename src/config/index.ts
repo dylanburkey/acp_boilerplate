@@ -31,6 +31,14 @@ export interface Config {
   maxGasPrice: number;
   txConfirmationTimeout: number;
   
+  // Service Level Agreement (SLA)
+  jobExpirationHours: number;
+  enableJobExpiration: boolean;
+  
+  // Environment
+  environment: 'sandbox' | 'production';
+  sandboxTransactionCount: number;
+  
   // Logging
   logLevel: string;
   logApiOutput: boolean;
@@ -112,7 +120,15 @@ export function loadConfig(): Config {
     // State management
     keepCompletedJobs: parseInt(process.env.KEEP_COMPLETED_JOBS || '5'),
     keepCancelledJobs: parseInt(process.env.KEEP_CANCELLED_JOBS || '5'),
-    ignoredJobIds: process.env.IGNORED_JOB_IDS?.split(',').filter(Boolean) || []
+    ignoredJobIds: process.env.IGNORED_JOB_IDS?.split(',').filter(Boolean) || [],
+    
+    // Service Level Agreement (SLA)
+    jobExpirationHours: parseInt(process.env.JOB_EXPIRATION_HOURS || '24'),
+    enableJobExpiration: process.env.ENABLE_JOB_EXPIRATION !== 'false',
+    
+    // Environment
+    environment: (process.env.ENVIRONMENT || 'sandbox') as 'sandbox' | 'production',
+    sandboxTransactionCount: parseInt(process.env.SANDBOX_TRANSACTION_COUNT || '0')
   };
 }
 

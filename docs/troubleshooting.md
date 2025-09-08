@@ -67,6 +67,9 @@ This guide helps you diagnose and fix common issues with your ACP agent.
 **Solution**:
 1. Verify wallet is properly whitelisted on Virtuals Console
 2. Check that your GAME API key is valid and active
+3. Ensure agent is registered and approved for ACP network
+
+**Important**: No ETH is required - Virtuals Protocol handles all gas fees automatically
 3. Ensure you're using the correct network configuration
 4. **Note**: You don't need ETH - Virtuals handles gas fees automatically!
 

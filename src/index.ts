@@ -18,6 +18,7 @@ import AcpClient, {
 
 import {JobQueue} from './utils/simpleJobQueue';
 import {TransactionMonitor} from './utils/transactionMonitorInstance';
+import {SlaManager} from './utils/slaManager';
 // import AcpStateManager from './utils/acpStateManagerWrapper'; // Uncomment if using state filtering
 import {
   DefaultAgentService,
@@ -50,6 +51,9 @@ class AcpIntegration {
 
   /** Monitor for tracking transaction status and errors */
   private txMonitor!: TransactionMonitor;
+
+  /** SLA manager for handling job expiration and lifecycle states */
+  private slaManager!: SlaManager;
 
 
   /** Service implementation for processing agent requests */
@@ -135,6 +139,7 @@ class AcpIntegration {
       // Initialize utility services
       this.jobQueue = new JobQueue();
       this.txMonitor = new TransactionMonitor();
+      this.slaManager = new SlaManager();
       // Uncomment if using state filtering:
       // const stateManager = new AcpStateManager();
 
@@ -172,6 +177,9 @@ class AcpIntegration {
       retryCount: 0,
       params: job, // Store full job object for processing
     });
+    
+    // Add to SLA tracking for expiration monitoring
+    this.slaManager.addJob(String(job.id));
   }
 
   /**
@@ -221,6 +229,13 @@ class AcpIntegration {
           await this.fetchActiveJobs();
         }
 
+        // Check for expired jobs first
+        const expiredJobs = this.slaManager.checkExpiredJobs();
+        if (expiredJobs.length > 0) {
+          Logger.warn(`Found ${expiredJobs.length} expired jobs, removing from queue`);
+          expiredJobs.forEach(jobId => this.jobQueue.removeJob(jobId));
+        }
+        
         // Process the next job in the queue
         const nextJob = this.jobQueue.getNextJob();
         if (nextJob) {
@@ -308,11 +323,13 @@ class AcpIntegration {
         // Deliver successful result to the blockchain
         await this.deliverJob(acpJob, response.data);
         this.jobQueue.markCompleted(job.id);
+        this.slaManager.markCompleted(job.id);
         Logger.info(`✅ Job ${job.id} completed successfully`);
       } else {
         // Handle job failure by sending rejection
         await this.rejectJob(acpJob, response.error || 'Service error');
         this.jobQueue.markFailed(job.id);
+        this.slaManager.markRejected(job.id, response.error);
         Logger.error(`❌ Job ${job.id} failed: ${response.error}`);
       }
     } catch (error) {
@@ -323,8 +340,12 @@ class AcpIntegration {
       if (job.retryCount < config.acpMaxRetries) {
         job.retryCount++;
         job.priority -= 5; // Lower priority for retried jobs
+        this.slaManager.incrementRetry(job.id);
         this.jobQueue.addJob(job);
         Logger.info(`🔄 Job ${job.id} queued for retry (attempt ${job.retryCount})`);
+      } else {
+        // Mark as rejected in SLA after max retries
+        this.slaManager.markRejected(job.id, 'Max retries exceeded');
       }
     }
   }
@@ -479,6 +500,19 @@ class AcpIntegration {
     // Print transaction summary if available
     if (this.txMonitor) {
       this.txMonitor.printSummary();
+    }
+    
+    // Print SLA statistics and shutdown SLA manager
+    if (this.slaManager) {
+      const stats = this.slaManager.getStatistics();
+      Logger.info(`SLA Summary - Active: ${stats.activeJobs}, Environment: ${stats.environment}`);
+      if (stats.environment === 'sandbox') {
+        Logger.info(`Graduation progress: ${stats.sandboxProgress}/10 transactions`);
+        if (stats.graduationReady) {
+          Logger.info('🎓 Ready for graduation! Contact Virtuals team for manual review.');
+        }
+      }
+      this.slaManager.shutdown();
     }
 
     Logger.info('👋 Shutdown complete');

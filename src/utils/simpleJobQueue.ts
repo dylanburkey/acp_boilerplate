@@ -96,6 +96,13 @@ export class JobQueue {
   }
 
   /**
+   * Remove a specific job from the queue (e.g., for expired jobs)
+   */
+  removeJob(jobId: string): boolean {
+    return this.jobs.delete(jobId);
+  }
+
+  /**
    * Get queue status
    */
   getStatus(): { pending: number; completed: number; failed: number } {

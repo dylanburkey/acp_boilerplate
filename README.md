@@ -182,7 +182,9 @@ Common issues:
    - Increase `ACP_PROCESSING_DELAY` to avoid nonce conflicts
 
 3. **"AA23 reverted"**
-   - Add Base ETH to your whitelisted wallet
+   - Verify your wallet is whitelisted in the Virtuals Console
+   - Ensure your agent is properly registered and approved
+   - Note: No ETH is required - Virtuals handles all gas fees
 
 4. **Transaction timeouts**
    - Increase `TX_CONFIRMATION_TIMEOUT` for congested networks

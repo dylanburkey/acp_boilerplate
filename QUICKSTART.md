@@ -58,6 +58,7 @@ docker run -d --env-file .env my-agent
 
 ### "AA23 reverted" error  
 → Verify wallet is whitelisted on Virtuals Console
+→ Ensure agent is registered and approved - no ETH required
 
 ## 📚 Full Documentation
 
