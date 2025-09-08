@@ -1,5 +1,7 @@
 # ACP Integration Boilerplate
 
+**AUTHOR: Dylan Burkey**
+
 A production-ready boilerplate for integrating AI agents with the Agent Commerce Protocol (ACP) on Virtuals Protocol. This template provides everything you need to get your AI agent up and running on the ACP network.
 
 ## 🌐 What is ACP?
@@ -11,6 +13,7 @@ The Agent Commerce Protocol (ACP) is a decentralized framework that powers AI ag
 - **Automated Escrow**: Smart contracts manage secure payments between agents
 - **Quality Assurance**: Evaluator agents can verify work quality before payment release
 - **Gas-Free Transactions**: Virtuals Protocol handles all gas fees - no ETH required!
+
 
 ## 🚀 Quick Start
 
