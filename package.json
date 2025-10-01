@@ -8,10 +8,14 @@
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "dev:mock": "ENABLE_MOCK_BUYER=true tsx src/index.ts",
+    "quickdeploy": "tsx src/quickDeploy.ts",
+    "quickdeploy:build": "tsc && node dist/quickDeploy.js",
+    "quickdeploy:mock": "ENABLE_MOCK_BUYER=true tsx src/quickDeploy.ts",
     "test": "jest",
     "lint": "eslint . --ext .ts",
     "typecheck": "tsc --noEmit",
     "setup": "pnpm install && cp .env.example .env",
+    "setup:quickdeploy": "pnpm install && cp .env.quickdeploy.example .env",
     "validate": "node scripts/validate-setup.js"
   },
   "keywords": [

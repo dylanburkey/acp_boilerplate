@@ -35,6 +35,11 @@ export interface Config {
   maxGasPrice: number;
   txConfirmationTimeout: number;
   
+  // Quick Deploy specific configuration
+  factoryContractAddress?: string;
+  paymentRecipientAddress?: string;
+  usdcContractAddress?: string;
+  
   // Service Level Agreement (SLA)
   jobExpirationHours: number;
   enableJobExpiration: boolean;
@@ -131,6 +136,11 @@ export function loadConfig(): Config {
     keepCompletedJobs: parseInt(process.env.KEEP_COMPLETED_JOBS || '5'),
     keepCancelledJobs: parseInt(process.env.KEEP_CANCELLED_JOBS || '5'),
     ignoredJobIds: process.env.IGNORED_JOB_IDS?.split(',').filter(Boolean) || [],
+    
+    // Quick Deploy specific configuration
+    factoryContractAddress: process.env.FACTORY_CONTRACT_ADDRESS,
+    paymentRecipientAddress: process.env.PAYMENT_RECIPIENT_ADDRESS,
+    usdcContractAddress: process.env.USDC_CONTRACT_ADDRESS || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
     
     // Service Level Agreement (SLA)
     jobExpirationHours: parseInt(process.env.JOB_EXPIRATION_HOURS || '24'),
