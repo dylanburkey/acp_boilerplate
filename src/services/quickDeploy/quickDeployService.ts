@@ -2,7 +2,7 @@
  * @fileoverview Quick Deploy Service for Kosher Capital's AI Trading Agent deployment.
  * This service handles the deployment of trading agents through the ACP protocol.
  * 
- * @author Athena AI Team
+ * @author Dylan Burkey
  * @license MIT
  */
 

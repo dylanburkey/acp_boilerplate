@@ -1,7 +1,7 @@
 /**
  * @fileoverview Unit tests for Quick Deploy Service
  * 
- * @author Athena AI Team
+ * @author Dylan Burkey
  * @license MIT
  */
 

@@ -1,7 +1,7 @@
 /**
  * @fileoverview Service Level Agreement (SLA) manager for handling job expiration
  * and lifecycle states according to ACP best practices.
- * @author ACP Integration Boilerplate
+ * @author Dylan Burkey
  * @license MIT
  */
 

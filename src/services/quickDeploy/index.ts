@@ -1,7 +1,7 @@
 /**
  * @fileoverview Quick Deploy service exports
  * 
- * @author Athena AI Team
+ * @author Dylan Burkey
  * @license MIT
  */
 

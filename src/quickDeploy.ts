@@ -4,7 +4,7 @@
  * @fileoverview Main entry point for Kosher Capital's Quick Deploy ACP integration.
  * This version is specifically configured for the quick deploy service.
  *
- * @author Athena AI Team
+ * @author Dylan Burkey
  * @license MIT
  */
 

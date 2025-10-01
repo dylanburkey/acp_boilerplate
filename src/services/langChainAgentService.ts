@@ -1,7 +1,7 @@
 /**
  * @fileoverview LangChain-powered agent service example for AI-driven request processing.
  * This service demonstrates how to integrate LangChain with ACP for intelligent agent behavior.
- * @author ACP Integration Boilerplate
+ * @author Dylan Burkey
  * @license MIT
  */
 

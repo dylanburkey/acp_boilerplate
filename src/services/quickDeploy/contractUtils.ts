@@ -2,7 +2,7 @@
  * @fileoverview Contract interaction utilities for Quick Deploy service.
  * Handles wallet generation and contract calls for agent deployment.
  * 
- * @author Athena AI Team
+ * @author Dylan Burkey
  * @license MIT
  */
 

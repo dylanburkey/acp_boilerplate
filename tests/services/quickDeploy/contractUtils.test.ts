@@ -1,7 +1,7 @@
 /**
  * @fileoverview Unit tests for Quick Deploy Contract Utilities
  * 
- * @author Athena AI Team
+ * @author Dylan Burkey
  * @license MIT
  */
 

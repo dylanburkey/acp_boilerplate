@@ -89,7 +89,7 @@
  * 5. Start earning money from crypto news requests!
  * 
  * @fileoverview Complete crypto news analysis service for ACP network
- * @author ACP Integration Boilerplate
+ * @author Dylan Burkey
  * @license MIT
  * @version 1.0.0
  */

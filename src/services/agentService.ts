@@ -2,7 +2,7 @@
  * @fileoverview Agent service implementations for processing ACP job requests.
  * Provides both a default API-based service and a customizable service template.
  *
- * @author ACP Integration Boilerplate
+ * @author Dylan Burkey
  * @license MIT
  */
 
