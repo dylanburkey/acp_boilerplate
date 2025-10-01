@@ -19,6 +19,17 @@ import {
 import { QuickDeployContract, DeploymentResult } from './contractUtils';
 import { notificationService } from './notificationService';
 import { transactionTracker } from './transactionTracker';
+import { getEventMonitor } from './eventMonitor';
+import {
+  API_CONFIG,
+  ERROR_TYPES,
+  ERROR_MESSAGES,
+  LOG_PREFIX,
+  JOB_STATUS,
+  DEPLOYMENT_CONFIG,
+  REQUEST_TYPES,
+  ENV_KEYS,
+} from './constants';
 
 /**
  * Interface for the Quick Deploy request parameters
@@ -71,7 +82,7 @@ export class QuickDeployService implements IAgentService {
   private readonly quickDeployEndpoint: string;
 
   /** API timeout in milliseconds */
-  private readonly apiTimeout = 30000;
+  private readonly apiTimeout = API_CONFIG.TIMEOUT_MS;
 
   /** Contract utilities instance */
   private readonly contractUtils: QuickDeployContract;
@@ -84,21 +95,21 @@ export class QuickDeployService implements IAgentService {
    */
   constructor() {
     // Use the actual endpoint from documentation
-    this.quickDeployEndpoint = 'https://parallax-analytics.onrender.com/api/v1/secure/fundDetails/quick-deploy';
+    this.quickDeployEndpoint = API_CONFIG.QUICK_DEPLOY_ENDPOINT;
     
     // Use the API key from environment
-    this.apiKey = process.env.SHEKEL_API_KEY || '';
+    this.apiKey = process.env[ENV_KEYS.SHEKEL_API_KEY] || '';
     
     // Initialize contract utilities
     this.contractUtils = new QuickDeployContract();
     
-    this.logger.info('QuickDeployService initialized');
-    this.logger.info(`Quick Deploy Endpoint: ${this.quickDeployEndpoint}`);
+    this.logger.info(`${LOG_PREFIX.INIT} QuickDeployService initialized`);
+    this.logger.info(`${LOG_PREFIX.INFO} Quick Deploy Endpoint: ${this.quickDeployEndpoint}`);
     
     // Configuration validation
     if (!this.apiKey || this.apiKey.length < 10) {
-      this.logger.warn('SHEKEL_API_KEY environment variable not configured.');
-      this.logger.warn('Please set SHEKEL_API_KEY in your .env file for API functionality.');
+      this.logger.warn(`${LOG_PREFIX.WARNING} ${ERROR_MESSAGES.MISSING_API_KEY}`);
+      this.logger.warn(`${LOG_PREFIX.WARNING} Please set ${ENV_KEYS.SHEKEL_API_KEY} in your .env file for API functionality.`);
     }
   }
 
@@ -118,14 +129,14 @@ export class QuickDeployService implements IAgentService {
     const startTime = Date.now();
     
     try {
-      this.logger.info(`Processing quick deploy request for job ${request.jobId}`);
+      this.logger.info(`${LOG_PREFIX.PROCESSING} Processing quick deploy request for job ${request.jobId}`);
 
       // Validate request scope
       if (!this.validateRequestScope(request)) {
         return {
           success: false,
           error: 'Invalid request - not a quick deploy request',
-          errorType: 'SCOPE_ERROR',
+          errorType: ERROR_TYPES.SCOPE_ERROR,
           metadata: {
             processingTime: `${Date.now() - startTime}ms`,
             withinScope: false
@@ -140,7 +151,7 @@ export class QuickDeployService implements IAgentService {
         return {
           success: false,
           error: 'Missing required parameter: userWallet',
-          errorType: 'VALIDATION_ERROR',
+          errorType: ERROR_TYPES.VALIDATION_ERROR,
           metadata: {
             processingTime: `${Date.now() - startTime}ms`,
             withinScope: true
@@ -148,8 +159,9 @@ export class QuickDeployService implements IAgentService {
         };
       }
 
-      // Generate agent name if not provided
-      const agentName = params.agentName || `ACP-${Date.now()}`;
+      // Generate agent name with ACP prefix for tracking (as requested in meeting)
+      const timestamp = Date.now();
+      const agentName = params.agentName || `ACP-${timestamp}`;
 
       // Create transaction record
       const transaction = transactionTracker.createTransaction(
@@ -160,16 +172,17 @@ export class QuickDeployService implements IAgentService {
       );
 
       // Update transaction status
-      transactionTracker.updateTransaction(transaction.id, { status: 'processing' });
+      transactionTracker.updateTransaction(transaction.id, { status: JOB_STATUS.PROCESSING });
 
       let contractCreationTxHash: string;
       let fundAddress: string | undefined;
       let paymentTxHash: string | undefined;
 
-      // Check if we should execute on-chain deployment
+      // Butler integration: Check if we should execute on-chain deployment
+      // Butler provides payment TX hash after user pays 50 USDC
       if (params.executeOnChain !== false && !params.paymentTxHash) {
         // Execute the full 3-transaction deployment flow
-        this.logger.info('Executing on-chain deployment...');
+        this.logger.info(`${LOG_PREFIX.PROCESSING} Executing on-chain deployment...`);
         
         try {
           // Create a signer (in production, this would be the user's signer)
@@ -203,14 +216,14 @@ export class QuickDeployService implements IAgentService {
         } catch (deployError) {
           this.logger.error('On-chain deployment failed:', deployError);
           transactionTracker.updateTransaction(transaction.id, {
-            status: 'failed',
+            status: JOB_STATUS.FAILED,
             error: 'On-chain deployment failed',
           });
           
           return {
             success: false,
             error: 'Failed to deploy contracts on-chain',
-            errorType: 'PROCESSING_ERROR',
+            errorType: ERROR_TYPES.PROCESSING_ERROR,
             metadata: {
               processingTime: `${Date.now() - startTime}ms`,
               withinScope: true
@@ -219,13 +232,17 @@ export class QuickDeployService implements IAgentService {
         }
         
       } else if (params.paymentTxHash) {
-        // Use provided payment hash and verify it
-        this.logger.info('Using provided payment transaction hash');
+        // Butler has already processed the 50 USDC payment
+        this.logger.info(`${LOG_PREFIX.BUTLER} Using Butler-provided payment transaction hash: ${params.paymentTxHash}`);
+        
+        // Monitor the payment for automatic contract matching
+        const eventMonitor = getEventMonitor(this.contractUtils['provider']);
+        await eventMonitor.monitorButlerPayment(params.paymentTxHash, params.userWallet);
         
         const isPaymentValid = await this.contractUtils.verifyPayment(params.paymentTxHash);
         if (!isPaymentValid) {
           transactionTracker.updateTransaction(transaction.id, {
-            status: 'failed',
+            status: JOB_STATUS.FAILED,
             error: 'Invalid payment transaction',
           });
           return {
@@ -239,14 +256,22 @@ export class QuickDeployService implements IAgentService {
           };
         }
         
-        // For API-only mode, we need the contract creation hash
-        // This would typically come from monitoring the blockchain
-        contractCreationTxHash = await this.findContractCreationTx(params.userWallet);
+        // Check event monitor first for recent deployments
+        const eventMonitor = getEventMonitor();
+        const recentTx = await eventMonitor.findContractCreationByUser(params.userWallet);
+        
+        if (recentTx) {
+          this.logger.info(`${LOG_PREFIX.SUCCESS} Found recent contract creation: ${recentTx}`);
+          contractCreationTxHash = recentTx;
+        } else {
+          // Fallback to placeholder if no recent deployment found
+          contractCreationTxHash = await this.findContractCreationTx(params.userWallet);
+        }
         paymentTxHash = params.paymentTxHash;
       } else {
         return {
           success: false,
-          error: 'Either executeOnChain must be true or paymentTxHash must be provided',
+          error: 'Butler must provide paymentTxHash after user payment, or executeOnChain must be enabled',
           errorType: 'VALIDATION_ERROR',
           metadata: {
             processingTime: `${Date.now() - startTime}ms`,
@@ -367,7 +392,7 @@ export class QuickDeployService implements IAgentService {
       const failedTransaction = transactionTracker.getTransactionByJobId(request.jobId);
       if (failedTransaction) {
         transactionTracker.updateTransaction(failedTransaction.id, {
-          status: 'failed',
+          status: JOB_STATUS.FAILED,
           error: errorMessage,
         });
       }
@@ -383,7 +408,7 @@ export class QuickDeployService implements IAgentService {
         await notificationService.notifyDeploymentResult(notification);
         
         // Send webhook event for tracking
-        await notificationService.sendWebhookEvent('agent.deployment.failed', {
+        await notificationService.sendWebhookEvent(EVENTS.DEPLOYMENT_FAILED, {
           jobId: request.jobId,
           error: errorMessage,
           errorType,
@@ -405,15 +430,15 @@ export class QuickDeployService implements IAgentService {
     try {
       // Validate that we have the required configuration
       if (!this.apiKey) {
-        this.logger.error('Shekel API key not configured');
+        this.logger.error(`${LOG_PREFIX.ERROR} ${ERROR_MESSAGES.MISSING_API_KEY}`);
         return false;
       }
 
-      this.logger.info('Quick Deploy service validation successful');
+      this.logger.info(`${LOG_PREFIX.SUCCESS} Quick Deploy service validation successful`);
       return true;
 
     } catch (error) {
-      this.logger.error('Quick Deploy service validation failed:', error);
+      this.logger.error(`${LOG_PREFIX.ERROR} Quick Deploy service validation failed:`, error);
       return false;
     }
   }
@@ -442,7 +467,7 @@ export class QuickDeployService implements IAgentService {
     }
 
     // Optionally, check if the request type matches
-    if (params.type && params.type !== 'quick-deploy' && params.type !== 'deploy-agent') {
+    if (params.type && params.type !== REQUEST_TYPES.QUICK_DEPLOY && params.type !== REQUEST_TYPES.DEPLOY_AGENT) {
       this.logger.warn(`Request type '${params.type}' not supported by QuickDeploy service`);
       return false;
     }
@@ -452,7 +477,8 @@ export class QuickDeployService implements IAgentService {
 
   /**
    * Finds the contract creation transaction for a user
-   * This is a simplified version - in production you'd want more robust tracking
+   * Per meeting notes: Contract creation TX hash needs to be generated outside of ACP
+   * Butler will handle payment, then we generate the contract creation TX
    * 
    * @param {string} userWallet - User's wallet address
    * @returns {Promise<string>} Contract creation transaction hash
@@ -460,10 +486,12 @@ export class QuickDeployService implements IAgentService {
    */
   private async findContractCreationTx(userWallet: string): Promise<string> {
     try {
-      // In a real implementation, you would:
-      // 1. Monitor PersonalFundCreated events from the factory
-      // 2. Track transaction hashes by user
-      // 3. Use a database or indexer
+      // In production implementation:
+      // 1. Butler processes user payment (50 USDC)
+      // 2. We receive payment TX hash from Butler
+      // 3. We execute contract creation outside of ACP
+      // 4. Monitor PersonalFundCreated events from the factory
+      // 5. Track transaction hashes by user in database
       
       // For now, generate a placeholder
       const mockHash = `0x${ethers.keccak256(ethers.toUtf8Bytes(userWallet + Date.now())).slice(2)}`;

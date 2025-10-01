@@ -9,12 +9,13 @@
 import { ethers } from 'ethers';
 import { config } from '../../config';
 import { Logger } from '../../utils/logger';
-
-// Contract addresses from the provided documentation
-const FACTORY_ADDRESS = '0x0fE1eBa3e809CD0Fc34b6a3666754B7A042c169a';
-const FACTORY_ADDRESS_NEW = '0xA2BAB24e3c8cf0d68bF9B16039d7c7D3fBC032e7';
-const USDC_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
-const DESIGNATED_ADDRESS = '0x48597AfA1c4e7530CA8889bA9291494757FEABD2'; // Payment recipient
+import { 
+  CONTRACT_ADDRESSES,
+  PAYMENT_CONFIG,
+  CONTRACT_FUNCTIONS,
+  EVENTS,
+  LOG_PREFIX,
+} from './constants';
 
 // Minimal ABIs for the required functions
 const FACTORY_ABI = [
@@ -24,7 +25,7 @@ const FACTORY_ABI = [
       { "internalType": "address", "name": "aiWallet", "type": "address" },
       { "internalType": "address", "name": "frTokenAddress", "type": "address" }
     ],
-    "name": "createPersonalizedFunds",
+    "name": CONTRACT_FUNCTIONS.CREATE_PERSONALIZED_FUNDS,
     "outputs": [{ "internalType": "address", "name": "", "type": "address" }],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -38,7 +39,7 @@ const ERC20_TRANSFER_ABI = [
       { "name": "_to", "type": "address" },
       { "name": "_value", "type": "uint256" }
     ],
-    "name": "transfer",
+    "name": CONTRACT_FUNCTIONS.TRANSFER,
     "outputs": [{ "name": "", "type": "bool" }],
     "payable": false,
     "stateMutability": "nonpayable",
@@ -47,7 +48,7 @@ const ERC20_TRANSFER_ABI = [
   {
     "constant": true,
     "inputs": [{ "name": "_owner", "type": "address" }],
-    "name": "balanceOf",
+    "name": CONTRACT_FUNCTIONS.BALANCE_OF,
     "outputs": [{ "name": "balance", "type": "uint256" }],
     "payable": false,
     "stateMutability": "view",
@@ -58,7 +59,7 @@ const ERC20_TRANSFER_ABI = [
 const PERSONAL_FUND_ABI = [
   {
     "type": "function",
-    "name": "setTradingEnabled",
+    "name": CONTRACT_FUNCTIONS.SET_TRADING_ENABLED,
     "inputs": [{ "name": "enable", "type": "bool", "internalType": "bool" }],
     "outputs": [],
     "stateMutability": "nonpayable"
@@ -106,25 +107,28 @@ export class QuickDeployContract {
   /** Factory contract address (using the original, not the new one) */
   private readonly FACTORY_CONTRACT_ADDRESS: string;
   
-  /** Payment amount in USDC (with 6 decimals) */
-  private readonly PAYMENT_AMOUNT = ethers.parseUnits(config.servicePrice?.toString() || '50', 6);
+  /** Payment amount in USDC (with decimals) */
+  private readonly PAYMENT_AMOUNT = ethers.parseUnits(
+    (config.servicePrice || PAYMENT_CONFIG.DEFAULT_AMOUNT).toString(), 
+    PAYMENT_CONFIG.USDC_DECIMALS
+  );
 
   constructor() {
     // Initialize provider with configured RPC URL
     this.provider = new ethers.JsonRpcProvider(config.acpRpcUrl);
     
     // Use the original factory address (not the new one, as per transcript)
-    this.FACTORY_CONTRACT_ADDRESS = config.factoryContractAddress || FACTORY_ADDRESS;
+    this.FACTORY_CONTRACT_ADDRESS = config.factoryContractAddress || CONTRACT_ADDRESSES.FACTORY;
     
-    if (this.FACTORY_CONTRACT_ADDRESS === FACTORY_ADDRESS_NEW) {
-      this.logger.warn('Using NEW factory address - transcript says NOT to use this!');
+    if (this.FACTORY_CONTRACT_ADDRESS === CONTRACT_ADDRESSES.FACTORY_NEW) {
+      this.logger.warn(`${LOG_PREFIX.WARNING} Using NEW factory address - transcript says NOT to use this!`);
     }
     
-    this.logger.info('QuickDeployContract initialized');
-    this.logger.info(`Factory address: ${this.FACTORY_CONTRACT_ADDRESS}`);
-    this.logger.info(`USDC address: ${USDC_ADDRESS}`);
-    this.logger.info(`Payment recipient: ${DESIGNATED_ADDRESS}`);
-    this.logger.info(`Payment amount: ${config.servicePrice || 50} USDC`);
+    this.logger.info(`${LOG_PREFIX.INIT} QuickDeployContract initialized`);
+    this.logger.info(`${LOG_PREFIX.INFO} Factory address: ${this.FACTORY_CONTRACT_ADDRESS}`);
+    this.logger.info(`${LOG_PREFIX.INFO} USDC address: ${CONTRACT_ADDRESSES.USDC}`);
+    this.logger.info(`${LOG_PREFIX.INFO} Payment recipient: ${CONTRACT_ADDRESSES.PAYMENT_RECIPIENT}`);
+    this.logger.info(`${LOG_PREFIX.INFO} Payment amount: ${config.servicePrice || PAYMENT_CONFIG.DEFAULT_AMOUNT} USDC`);
   }
 
   /**
@@ -136,14 +140,16 @@ export class QuickDeployContract {
    */
   async simulateDeployment(params: DeploymentParams, signer: ethers.Signer): Promise<boolean> {
     try {
-      this.logger.info('Simulating deployment process...');
+      this.logger.info(`${LOG_PREFIX.PROCESSING} Simulating deployment process...`);
       
       // 1. Check USDC balance
-      const usdcContract = new ethers.Contract(USDC_ADDRESS, ERC20_TRANSFER_ABI, this.provider);
+      const usdcContract = new ethers.Contract(CONTRACT_ADDRESSES.USDC, ERC20_TRANSFER_ABI, this.provider);
       const balance = await usdcContract.balanceOf(params.userWallet);
       
       if (balance < this.PAYMENT_AMOUNT) {
-        this.logger.error(`Insufficient USDC balance: ${ethers.formatUnits(balance, 6)} USDC (need ${config.servicePrice || 50} USDC)`);
+        const currentBalance = ethers.formatUnits(balance, PAYMENT_CONFIG.USDC_DECIMALS);
+        const requiredAmount = config.servicePrice || PAYMENT_CONFIG.DEFAULT_AMOUNT;
+        this.logger.error(`${LOG_PREFIX.ERROR} Insufficient USDC balance: ${currentBalance} USDC (need ${requiredAmount} USDC)`);
         return false;
       }
       
@@ -160,30 +166,30 @@ export class QuickDeployContract {
         await factoryContract.createPersonalizedFunds.staticCall(
           true, // isTokenFund
           aiWallet,
-          USDC_ADDRESS // frTokenAddress
+          CONTRACT_ADDRESSES.USDC // frTokenAddress
         );
-        this.logger.info('Fund creation simulation successful');
+        this.logger.info(`${LOG_PREFIX.SUCCESS} Fund creation simulation successful`);
       } catch (error) {
-        this.logger.error('Fund creation simulation failed:', error);
+        this.logger.error(`${LOG_PREFIX.ERROR} Fund creation simulation failed:`, error);
         return false;
       }
       
       // 3. Simulate USDC transfer
       try {
         await usdcContract.transfer.staticCall(
-          DESIGNATED_ADDRESS,
+          CONTRACT_ADDRESSES.PAYMENT_RECIPIENT,
           this.PAYMENT_AMOUNT
         );
-        this.logger.info('Payment simulation successful');
+        this.logger.info(`${LOG_PREFIX.SUCCESS} Payment simulation successful`);
       } catch (error) {
-        this.logger.error('Payment simulation failed:', error);
+        this.logger.error(`${LOG_PREFIX.ERROR} Payment simulation failed:`, error);
         return false;
       }
       
       return true;
       
     } catch (error) {
-      this.logger.error('Deployment simulation failed:', error);
+      this.logger.error(`${LOG_PREFIX.ERROR} Deployment simulation failed:`, error);
       return false;
     }
   }
@@ -198,7 +204,7 @@ export class QuickDeployContract {
    */
   async deployAgent(params: DeploymentParams, signer: ethers.Signer): Promise<DeploymentResult> {
     try {
-      this.logger.info('Starting agent deployment process');
+      this.logger.info(`${LOG_PREFIX.PROCESSING} Starting agent deployment process`);
       
       // Transaction 1: Create personal fund
       const fundAddress = await this.createPersonalFund(params, signer);
@@ -210,7 +216,7 @@ export class QuickDeployContract {
       // Transaction 3: Enable trading
       const enableTradingTxHash = await this.enableTrading(fundAddress, signer);
       
-      this.logger.info('Agent deployment completed successfully');
+      this.logger.info(`${LOG_PREFIX.SUCCESS} Agent deployment completed successfully`);
       
       return {
         fundAddress,
@@ -220,7 +226,7 @@ export class QuickDeployContract {
       };
       
     } catch (error) {
-      this.logger.error('Agent deployment failed:', error);
+      this.logger.error(`${LOG_PREFIX.ERROR} Agent deployment failed:`, error);
       throw new Error('Failed to deploy agent');
     }
   }
@@ -234,7 +240,7 @@ export class QuickDeployContract {
    * @private
    */
   private async createPersonalFund(params: DeploymentParams, signer: ethers.Signer): Promise<string> {
-    this.logger.info('Creating personal fund...');
+    this.logger.info(`${LOG_PREFIX.PROCESSING} Creating personal fund...`);
     
     const factoryContract = new ethers.Contract(
       this.FACTORY_CONTRACT_ADDRESS,
@@ -248,10 +254,10 @@ export class QuickDeployContract {
     const tx = await factoryContract.createPersonalizedFunds(
       true, // isTokenFund
       aiWallet, // aiWallet (can be same as user)
-      USDC_ADDRESS // frTokenAddress
+      CONTRACT_ADDRESSES.USDC // frTokenAddress
     );
     
-    this.logger.info(`Fund creation tx sent: ${tx.hash}`);
+    this.logger.info(`${LOG_PREFIX.INFO} Fund creation tx sent: ${tx.hash}`);
     
     // Wait for confirmation and get the created fund address from events
     const receipt = await tx.wait();
@@ -267,7 +273,7 @@ export class QuickDeployContract {
       try {
         // Look for PersonalFundCreated event
         // event PersonalFundCreated(address indexed fundAddress, address indexed owner, bool isTokenFund)
-        if (log.topics[0] === ethers.id('PersonalFundCreated(address,address,bool)')) {
+        if (log.topics[0] === ethers.id(`${EVENTS.PERSONAL_FUND_CREATED}(address,address,bool)`)) {
           fundAddress = ethers.getAddress('0x' + log.topics[1].slice(26));
           break;
         }
@@ -280,7 +286,7 @@ export class QuickDeployContract {
       throw new Error('Could not find created fund address in transaction logs');
     }
     
-    this.logger.info(`Personal fund created at: ${fundAddress}`);
+    this.logger.info(`${LOG_PREFIX.SUCCESS} Personal fund created at: ${fundAddress}`);
     return fundAddress;
   }
 
@@ -293,32 +299,32 @@ export class QuickDeployContract {
    * @private
    */
   private async makePayment(params: DeploymentParams, signer: ethers.Signer): Promise<string> {
-    this.logger.info('Making USDC payment...');
+    this.logger.info(`${LOG_PREFIX.PROCESSING} Making USDC payment...`);
     
     const usdcContract = new ethers.Contract(
-      USDC_ADDRESS,
+      CONTRACT_ADDRESSES.USDC,
       ERC20_TRANSFER_ABI,
       signer
     );
     
     const paymentAmount = params.paymentAmount 
-      ? ethers.parseUnits(params.paymentAmount.toString(), 6)
+      ? ethers.parseUnits(params.paymentAmount.toString(), PAYMENT_CONFIG.USDC_DECIMALS)
       : this.PAYMENT_AMOUNT;
     
     // Log expected vs actual payment amount
-    const expectedAmount = config.servicePrice || 50;
-    const actualAmount = Number(ethers.formatUnits(paymentAmount, 6));
+    const expectedAmount = config.servicePrice || PAYMENT_CONFIG.DEFAULT_AMOUNT;
+    const actualAmount = Number(ethers.formatUnits(paymentAmount, PAYMENT_CONFIG.USDC_DECIMALS));
     if (actualAmount !== expectedAmount) {
-      this.logger.warn(`Payment amount mismatch: expected ${expectedAmount} USDC, got ${actualAmount} USDC`);
+      this.logger.warn(`${LOG_PREFIX.WARNING} Payment amount mismatch: expected ${expectedAmount} USDC, got ${actualAmount} USDC`);
     }
     
     // Transfer USDC to designated address
     const tx = await usdcContract.transfer(
-      DESIGNATED_ADDRESS,
+      CONTRACT_ADDRESSES.PAYMENT_RECIPIENT,
       paymentAmount
     );
     
-    this.logger.info(`Payment tx sent: ${tx.hash}`);
+    this.logger.info(`${LOG_PREFIX.INFO} Payment tx sent: ${tx.hash}`);
     
     // Wait for confirmation
     const receipt = await tx.wait();
@@ -327,7 +333,7 @@ export class QuickDeployContract {
       throw new Error('Payment transaction failed');
     }
     
-    this.logger.info(`Payment of ${ethers.formatUnits(paymentAmount, 6)} USDC completed`);
+    this.logger.info(`${LOG_PREFIX.SUCCESS} Payment of ${ethers.formatUnits(paymentAmount, PAYMENT_CONFIG.USDC_DECIMALS)} USDC completed`);
     return tx.hash;
   }
 
@@ -340,7 +346,7 @@ export class QuickDeployContract {
    * @private
    */
   private async enableTrading(fundAddress: string, signer: ethers.Signer): Promise<string> {
-    this.logger.info(`Enabling trading for fund ${fundAddress}...`);
+    this.logger.info(`${LOG_PREFIX.PROCESSING} Enabling trading for fund ${fundAddress}...`);
     
     const fundContract = new ethers.Contract(
       fundAddress,
@@ -351,7 +357,7 @@ export class QuickDeployContract {
     // Enable trading
     const tx = await fundContract.setTradingEnabled(true);
     
-    this.logger.info(`Enable trading tx sent: ${tx.hash}`);
+    this.logger.info(`${LOG_PREFIX.INFO} Enable trading tx sent: ${tx.hash}`);
     
     // Wait for confirmation
     const receipt = await tx.wait();
@@ -360,7 +366,7 @@ export class QuickDeployContract {
       throw new Error('Enable trading transaction failed');
     }
     
-    this.logger.info('Trading enabled successfully');
+    this.logger.info(`${LOG_PREFIX.SUCCESS} Trading enabled successfully`);
     return tx.hash;
   }
 
@@ -392,39 +398,39 @@ export class QuickDeployContract {
    */
   async verifyPayment(paymentTxHash: string): Promise<boolean> {
     try {
-      this.logger.info(`Verifying payment transaction: ${paymentTxHash}`);
+      this.logger.info(`${LOG_PREFIX.PROCESSING} Verifying payment transaction: ${paymentTxHash}`);
       
       // Get transaction receipt
       const receipt = await this.provider.getTransactionReceipt(paymentTxHash);
       
       if (!receipt) {
-        this.logger.warn('Payment transaction not found');
+        this.logger.warn(`${LOG_PREFIX.WARNING} Payment transaction not found`);
         return false;
       }
 
       // Check if transaction was successful
       if (receipt.status !== 1) {
-        this.logger.warn('Payment transaction failed');
+        this.logger.warn(`${LOG_PREFIX.WARNING} Payment transaction failed`);
         return false;
       }
 
       // Verify it's a USDC transfer to the correct address
-      if (receipt.to?.toLowerCase() !== USDC_ADDRESS.toLowerCase()) {
-        this.logger.warn('Transaction is not to USDC contract');
+      if (receipt.to?.toLowerCase() !== CONTRACT_ADDRESSES.USDC.toLowerCase()) {
+        this.logger.warn(`${LOG_PREFIX.WARNING} Transaction is not to USDC contract`);
         return false;
       }
 
       // Parse logs to verify transfer details
       for (const log of receipt.logs) {
-        if (log.address.toLowerCase() === USDC_ADDRESS.toLowerCase()) {
+        if (log.address.toLowerCase() === CONTRACT_ADDRESSES.USDC.toLowerCase()) {
           // Check if it's a Transfer event
-          const transferTopic = ethers.id('Transfer(address,address,uint256)');
+          const transferTopic = ethers.id(`${EVENTS.TRANSFER}(address,address,uint256)`);
           if (log.topics[0] === transferTopic) {
             const to = ethers.getAddress('0x' + log.topics[2].slice(26));
-            if (to.toLowerCase() === DESIGNATED_ADDRESS.toLowerCase()) {
+            if (to.toLowerCase() === CONTRACT_ADDRESSES.PAYMENT_RECIPIENT.toLowerCase()) {
               const amount = ethers.toBigInt(log.data);
               if (amount >= this.PAYMENT_AMOUNT) {
-                this.logger.info('Payment verified successfully');
+                this.logger.info(`${LOG_PREFIX.SUCCESS} Payment verified successfully`);
                 return true;
               }
             }
@@ -432,11 +438,11 @@ export class QuickDeployContract {
         }
       }
 
-      this.logger.warn('Could not verify payment details in transaction');
+      this.logger.warn(`${LOG_PREFIX.WARNING} Could not verify payment details in transaction`);
       return false;
 
     } catch (error) {
-      this.logger.error('Error verifying payment:', error);
+      this.logger.error(`${LOG_PREFIX.ERROR} Error verifying payment:`, error);
       return false;
     }
   }
@@ -453,7 +459,7 @@ export class QuickDeployContract {
         [
           {
             "inputs": [],
-            "name": "getPersonalFundCreationFee",
+            "name": CONTRACT_FUNCTIONS.GET_PERSONAL_FUND_CREATION_FEE,
             "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
             "stateMutability": "view",
             "type": "function"
@@ -466,7 +472,7 @@ export class QuickDeployContract {
       return fee;
 
     } catch (error) {
-      this.logger.error('Failed to get creation fee:', error);
+      this.logger.error(`${LOG_PREFIX.ERROR} Failed to get creation fee:`, error);
       throw error;
     }
   }

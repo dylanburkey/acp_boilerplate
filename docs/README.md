@@ -61,6 +61,8 @@ Path from sandbox to production:
 
 ### [Kosher Capital Integration](kosher-capital-index.md) 🆕 **New Integration**
 Deploy AI trading agents through Kosher Capital:
+- Butler integration for seamless user experience
+- Automated payment processing (50 USDC)
 - Complete integration documentation
 - Visual flow diagrams
 - Quick start guide

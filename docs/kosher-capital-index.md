@@ -7,6 +7,7 @@ Welcome to the Kosher Capital ACP Integration documentation. This integration en
 ### Getting Started
 - **[Quick Reference Guide](./kosher-capital-quick-reference.md)** - 5-minute setup and key commands
 - **[Visual Flow Guide](./kosher-capital-visual-flow-guide.md)** - Diagrams and visual representations
+- **[Butler Integration Guide](./butler-integration.md)** 🆕 - How Butler works with Quick Deploy
 
 ### Comprehensive Guides
 - **[Integration Documentation](./kosher-capital-integration.md)** - Complete integration overview

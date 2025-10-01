@@ -9,6 +9,12 @@
 import axios, { AxiosResponse } from 'axios';
 import { config } from '../../config';
 import { Logger } from '../../utils/logger';
+import {
+  LOG_PREFIX,
+  JOB_STATUS,
+  ENV_KEYS,
+  DEPLOYMENT_CONFIG,
+} from './constants';
 
 /**
  * Interface for deployment notification data
@@ -33,7 +39,7 @@ export interface DeploymentNotification {
   /** Deployment timestamp */
   timestamp: string;
   /** Deployment source */
-  deploymentSource: 'ACP';
+  deploymentSource: string;
 }
 
 /**
@@ -72,9 +78,9 @@ export class KosherCapitalNotificationService {
       timeout: parseInt(process.env.CALLBACK_TIMEOUT || '30000'),
     };
     
-    this.logger.info('KosherCapitalNotificationService initialized');
+    this.logger.info(`${LOG_PREFIX.INIT} KosherCapitalNotificationService initialized`);
     if (!this.callbackConfig.url) {
-      this.logger.warn('No callback URL configured - notifications will be skipped');
+      this.logger.warn(`${LOG_PREFIX.WARNING} No callback URL configured - notifications will be skipped`);
     }
   }
 
@@ -86,11 +92,11 @@ export class KosherCapitalNotificationService {
    */
   async notifyDeploymentResult(notification: DeploymentNotification): Promise<boolean> {
     if (!this.callbackConfig.url) {
-      this.logger.info('Skipping notification - no callback URL configured');
+      this.logger.info(`${LOG_PREFIX.INFO} Skipping notification - no callback URL configured`);
       return true;
     }
 
-    this.logger.info(`Sending deployment notification for job ${notification.jobId}`);
+    this.logger.info(`${LOG_PREFIX.PROCESSING} Sending deployment notification for job ${notification.jobId}`);
     
     let attempts = 0;
     while (attempts < this.callbackConfig.maxRetries) {
@@ -185,25 +191,25 @@ export class KosherCapitalNotificationService {
     if (deploymentResult.success) {
       return {
         jobId,
-        status: 'success',
+        status: JOB_STATUS.COMPLETED as 'success' | 'failed',
         agentName: deploymentResult.data.agentName,
         paymentTxHash,
         contractCreationTxHash: deploymentResult.data.deploymentTxHash,
         contractAddress: deploymentResult.data.contractAddress,
         userWallet,
         timestamp: new Date().toISOString(),
-        deploymentSource: 'ACP',
+        deploymentSource: DEPLOYMENT_CONFIG.DEPLOYMENT_SOURCE,
       };
     } else {
       return {
         jobId,
-        status: 'failed',
+        status: JOB_STATUS.FAILED as 'success' | 'failed',
         agentName: deploymentResult.data?.agentName || 'Unknown',
         paymentTxHash,
         userWallet,
         error: deploymentResult.error || 'Unknown error',
         timestamp: new Date().toISOString(),
-        deploymentSource: 'ACP',
+        deploymentSource: DEPLOYMENT_CONFIG.DEPLOYMENT_SOURCE,
       };
     }
   }
@@ -229,7 +235,7 @@ export class KosherCapitalNotificationService {
           event,
           data,
           timestamp: new Date().toISOString(),
-          source: 'ACP-QuickDeploy',
+          source: `${DEPLOYMENT_CONFIG.DEPLOYMENT_SOURCE}-QuickDeploy`,
         },
         {
           headers: {
@@ -240,10 +246,10 @@ export class KosherCapitalNotificationService {
         }
       );
       
-      this.logger.info(`Webhook event '${event}' sent successfully`);
+      this.logger.info(`${LOG_PREFIX.SUCCESS} Webhook event '${event}' sent successfully`);
     } catch (error) {
       // Don't fail the main process if webhook fails
-      this.logger.warn(`Failed to send webhook event '${event}':`, error);
+      this.logger.warn(`${LOG_PREFIX.WARNING} Failed to send webhook event '${event}':`, error);
     }
   }
 
