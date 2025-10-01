@@ -13,7 +13,8 @@ This guide walks you through testing the Quick Deploy service end-to-end, includ
 ### 1. Prepare Test Environment
 
 ```bash
-# Copy test environment configuration
+# Copy test environment configuration from template
+cp .env.test.example .env.test
 cp .env.test .env
 
 # Create test logs directory
