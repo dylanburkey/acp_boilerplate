@@ -89,14 +89,20 @@ export class QuickDeployService implements IAgentService {
     // Use the actual endpoint from documentation
     this.quickDeployEndpoint = 'https://parallax-analytics.onrender.com/api/v1/secure/fundDetails/quick-deploy';
     
-    // Use the provided API key
-    this.apiKey = process.env.SHEKEL_API_KEY || '656a58ea4149df4dc24ae733fcd7efce665d99303379d4db1945e3a79fa9d635';
+    // Use the API key from environment
+    this.apiKey = process.env.SHEKEL_API_KEY || '';
     
     // Initialize contract utilities
     this.contractUtils = new QuickDeployContract();
     
     this.logger.info('QuickDeployService initialized');
     this.logger.info(`Quick Deploy Endpoint: ${this.quickDeployEndpoint}`);
+    
+    // Configuration validation
+    if (!this.apiKey || this.apiKey.length < 10) {
+      this.logger.warn('SHEKEL_API_KEY environment variable not configured.');
+      this.logger.warn('Please set SHEKEL_API_KEY in your .env file for API functionality.');
+    }
   }
 
   /**
