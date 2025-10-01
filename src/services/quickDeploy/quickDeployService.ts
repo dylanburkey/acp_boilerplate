@@ -73,9 +73,6 @@ export class QuickDeployService implements IAgentService {
   /** API timeout in milliseconds */
   private readonly apiTimeout = 30000;
 
-  /** Expected service price in USDC */
-  private readonly expectedServicePrice = 50;
-
   /** Contract utilities instance */
   private readonly contractUtils: QuickDeployContract;
   

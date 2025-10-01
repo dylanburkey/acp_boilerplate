@@ -107,7 +107,7 @@ export class QuickDeployContract {
   private readonly FACTORY_CONTRACT_ADDRESS: string;
   
   /** Payment amount in USDC (with 6 decimals) */
-  private readonly PAYMENT_AMOUNT = ethers.parseUnits('50', 6); // 50 USDC
+  private readonly PAYMENT_AMOUNT = ethers.parseUnits(config.servicePrice?.toString() || '50', 6);
 
   constructor() {
     // Initialize provider with configured RPC URL
@@ -124,6 +124,7 @@ export class QuickDeployContract {
     this.logger.info(`Factory address: ${this.FACTORY_CONTRACT_ADDRESS}`);
     this.logger.info(`USDC address: ${USDC_ADDRESS}`);
     this.logger.info(`Payment recipient: ${DESIGNATED_ADDRESS}`);
+    this.logger.info(`Payment amount: ${config.servicePrice || 50} USDC`);
   }
 
   /**
@@ -142,7 +143,7 @@ export class QuickDeployContract {
       const balance = await usdcContract.balanceOf(params.userWallet);
       
       if (balance < this.PAYMENT_AMOUNT) {
-        this.logger.error(`Insufficient USDC balance: ${ethers.formatUnits(balance, 6)} USDC`);
+        this.logger.error(`Insufficient USDC balance: ${ethers.formatUnits(balance, 6)} USDC (need ${config.servicePrice || 50} USDC)`);
         return false;
       }
       
@@ -303,6 +304,13 @@ export class QuickDeployContract {
     const paymentAmount = params.paymentAmount 
       ? ethers.parseUnits(params.paymentAmount.toString(), 6)
       : this.PAYMENT_AMOUNT;
+    
+    // Log expected vs actual payment amount
+    const expectedAmount = config.servicePrice || 50;
+    const actualAmount = Number(ethers.formatUnits(paymentAmount, 6));
+    if (actualAmount !== expectedAmount) {
+      this.logger.warn(`Payment amount mismatch: expected ${expectedAmount} USDC, got ${actualAmount} USDC`);
+    }
     
     // Transfer USDC to designated address
     const tx = await usdcContract.transfer(
