@@ -15,6 +15,8 @@ import {
   AgentResponse,
 } from '../agentService';
 import { QuickDeployContract } from './contractUtils';
+import { notificationService } from './notificationService';
+import { transactionTracker } from './transactionTracker';
 
 /**
  * Interface for the Quick Deploy request parameters
@@ -132,9 +134,24 @@ export class QuickDeployService implements IAgentService {
       // Generate agent name if not provided
       const agentName = params.agentName || `ACP-${Date.now()}`;
 
+      // Create transaction record
+      const transaction = transactionTracker.createTransaction(
+        request.jobId,
+        params.paymentTxHash,
+        params.userWallet,
+        agentName
+      );
+
+      // Update transaction status
+      transactionTracker.updateTransaction(transaction.id, { status: 'processing' });
+
       // Verify payment transaction (50 USDC)
       const isPaymentValid = await this.contractUtils.verifyPayment(params.paymentTxHash);
       if (!isPaymentValid) {
+        transactionTracker.updateTransaction(transaction.id, {
+          status: 'failed',
+          error: 'Invalid payment transaction',
+        });
         return {
           success: false,
           error: 'Invalid payment transaction',
@@ -149,6 +166,11 @@ export class QuickDeployService implements IAgentService {
       // Generate contract creation transaction hash
       // According to the transcript, this needs to be generated after payment is received
       const contractTxHash = await this.generateContractTransaction(params);
+      
+      // Update transaction with contract hash
+      transactionTracker.updateTransaction(transaction.id, {
+        contractCreationTxHash: contractTxHash,
+      });
 
       // Prepare the API request
       const apiRequest: QuickDeployApiRequest = {
@@ -163,8 +185,8 @@ export class QuickDeployService implements IAgentService {
       // Call the quick deploy API
       const response = await this.callQuickDeployApi(apiRequest);
 
-      // Return successful response
-      return {
+      // Prepare the response
+      const successResponse = {
         success: true,
         data: {
           agentName,
@@ -181,6 +203,41 @@ export class QuickDeployService implements IAgentService {
           deploymentSource: 'ACP',
         },
       };
+
+      // Update transaction as completed
+      transactionTracker.updateTransaction(transaction.id, {
+        status: 'completed',
+        contractAddress: response.contractAddress,
+        contractCreationTxHash: response.deploymentTxHash || contractTxHash,
+      });
+
+      // Send notification back to Kosher Capital
+      try {
+        const notification = notificationService.createDeploymentNotification(
+          request.jobId,
+          successResponse,
+          params.userWallet,
+          params.paymentTxHash
+        );
+        await notificationService.notifyDeploymentResult(notification);
+        
+        // Update notification status
+        transactionTracker.updateTransaction(transaction.id, {
+          notificationSent: true,
+        });
+        
+        // Send webhook event for tracking
+        await notificationService.sendWebhookEvent('agent.deployed', {
+          jobId: request.jobId,
+          agentName,
+          contractAddress: response.contractAddress,
+        });
+      } catch (notificationError) {
+        // Log but don't fail the deployment if notification fails
+        this.logger.error('Failed to send deployment notification:', notificationError);
+      }
+
+      return successResponse;
 
     } catch (error) {
       this.logger.error(`Error processing quick deploy for job ${request.jobId}:`, error);
@@ -211,7 +268,7 @@ export class QuickDeployService implements IAgentService {
         errorMessage = `Deployment failed: ${error.message}`;
       }
 
-      return {
+      const errorResponse = {
         success: false,
         error: errorMessage,
         errorType,
@@ -220,6 +277,37 @@ export class QuickDeployService implements IAgentService {
           withinScope: true
         }
       };
+
+      // Update transaction as failed
+      const failedTransaction = transactionTracker.getTransactionByJobId(request.jobId);
+      if (failedTransaction) {
+        transactionTracker.updateTransaction(failedTransaction.id, {
+          status: 'failed',
+          error: errorMessage,
+        });
+      }
+
+      // Send failure notification
+      try {
+        const notification = notificationService.createDeploymentNotification(
+          request.jobId,
+          errorResponse,
+          request.params?.userWallet || request.buyer,
+          request.params?.paymentTxHash || ''
+        );
+        await notificationService.notifyDeploymentResult(notification);
+        
+        // Send webhook event for tracking
+        await notificationService.sendWebhookEvent('agent.deployment.failed', {
+          jobId: request.jobId,
+          error: errorMessage,
+          errorType,
+        });
+      } catch (notificationError) {
+        this.logger.error('Failed to send error notification:', notificationError);
+      }
+
+      return errorResponse;
     }
   }
 

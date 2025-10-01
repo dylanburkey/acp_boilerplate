@@ -21,6 +21,8 @@ Butler (User Request) → ACP Network → Quick Deploy Service
                                             ↓
                                     Agent Deployment
                                             ↓
+                                    [Notification to Kosher Capital]
+                                            ↓
                                     Response to User
 ```
 
@@ -43,6 +45,21 @@ Butler (User Request) → ACP Network → Quick Deploy Service
 - Filters jobs to only process quick deploy requests
 - Manages job lifecycle and retries
 
+### 4. NotificationService (`src/services/quickDeploy/notificationService.ts`)
+- Sends deployment results back to Kosher Capital
+- Handles webhook notifications with retry logic
+- Supports multiple authentication methods
+
+### 5. TransactionTracker (`src/services/quickDeploy/transactionTracker.ts`)
+- Maintains persistent record of all deployments
+- Tracks transaction status and history
+- Provides reporting and statistics
+
+### 6. Status API (`src/services/quickDeploy/statusApi.ts`)
+- REST API for checking deployment status
+- Endpoints for statistics and reporting
+- Real-time deployment monitoring
+
 ## Setup
 
 1. **Copy environment file:**
@@ -56,6 +73,9 @@ Butler (User Request) → ACP Network → Quick Deploy Service
    - `AGENT_WALLET_ADDRESS`: Your agent's wallet address
    - `API_KEY`: API key for Kosher Capital's API
    - `FACTORY_CONTRACT_ADDRESS`: Contract address for agent deployment
+   - `KOSHER_CAPITAL_CALLBACK_URL`: URL for sending deployment notifications
+   - `KOSHER_CAPITAL_CALLBACK_TOKEN`: Authentication token for callbacks
+   - `STATUS_API_ENABLED`: Set to `true` to enable monitoring API
 
 3. **Install dependencies:**
    ```bash
@@ -115,6 +135,38 @@ The API should return deployment details including:
 5. **API Call**: Send deployment request to Kosher Capital's API
 6. **Response Delivery**: Return deployment details through ACP
 
+## Notification & Callbacks
+
+The service sends deployment results back to Kosher Capital through HTTP callbacks:
+
+### Notification Payload
+```json
+{
+  "jobId": "acp-job-123",
+  "status": "success",
+  "agentName": "ACP-1234567890",
+  "paymentTxHash": "0x...",
+  "contractCreationTxHash": "0x...",
+  "contractAddress": "0x...",
+  "userWallet": "0x...",
+  "timestamp": "2024-01-01T00:00:00Z",
+  "deploymentSource": "ACP"
+}
+```
+
+### Status API Endpoints
+
+When `STATUS_API_ENABLED=true`, the following endpoints are available:
+
+- `GET /health` - Health check
+- `GET /api/deployments/:jobId` - Get deployment status by job ID
+- `GET /api/deployments` - List all deployments (with pagination)
+- `GET /api/statistics` - Get deployment statistics
+- `GET /api/report` - Generate deployment report
+- `POST /api/deployments/:jobId/retry` - Retry failed deployment
+
+All API endpoints require authentication via `X-API-Key` header.
+
 ## Testing
 
 ### Mock Testing
@@ -126,6 +178,12 @@ ENABLE_MOCK_BUYER=true pnpm tsx src/quickDeploy.ts
 ### Unit Tests
 ```bash
 pnpm test
+```
+
+### Test Status API
+```bash
+curl http://localhost:3000/health
+curl -H "X-API-Key: your-api-key" http://localhost:3000/api/deployments
 ```
 
 ## Important Notes
@@ -144,6 +202,19 @@ The service handles various error scenarios:
 - Network issues
 
 Failed jobs are retried up to 3 times with exponential backoff.
+
+### Transaction States
+- `pending` - Initial state, waiting to be processed
+- `processing` - Currently being processed
+- `completed` - Successfully deployed
+- `failed` - Deployment failed after all retries
+
+## Transaction Logging
+
+All deployments are logged to disk for audit and reconciliation:
+- Location: `./logs/quick-deploy-transactions.json`
+- Format: JSON array of transaction records
+- Retention: Configurable via environment variables
 
 ## Security Considerations
 

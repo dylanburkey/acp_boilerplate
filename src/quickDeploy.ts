@@ -18,6 +18,7 @@ import { JobQueue } from './utils/simpleJobQueue';
 import { TransactionMonitor } from './utils/transactionMonitorInstance';
 import { SlaManager } from './utils/slaManager';
 import { QuickDeployService } from './services/quickDeploy';
+import { startStatusApi } from './services/quickDeploy/statusApi';
 import { config } from './config';
 import { Logger } from './utils/logger';
 
@@ -103,6 +104,14 @@ class QuickDeployAcpIntegration {
       Logger.info('✅ Quick Deploy ACP Integration initialized successfully');
       this.isRunning = true;
 
+      // Start status API if enabled
+      if (process.env.STATUS_API_ENABLED === 'true') {
+        const statusApiPort = parseInt(process.env.STATUS_API_PORT || '3000');
+        startStatusApi(statusApiPort).catch(err => {
+          Logger.error('Failed to start status API:', err);
+        });
+      }
+
       // Start the main processing loop
       await this.start();
     } catch (error) {
@@ -152,19 +161,26 @@ class QuickDeployAcpIntegration {
    * @private
    */
   private isQuickDeployJob(job: any): boolean {
-    // Check if the job has the required parameters for quick deploy
-    if (!job.params) return false;
+    // In ACP, we should check the service being requested
+    // The job might not have all parameters initially
     
-    // Check for quick deploy specific parameters
-    const hasPaymentHash = !!job.params.paymentTxHash;
-    const hasUserWallet = !!job.params.userWallet;
+    // Check if the service description matches our quick deploy service
+    const serviceMatches = 
+      job.serviceDescription?.toLowerCase().includes('deploy') ||
+      job.serviceDescription?.toLowerCase().includes('trading agent') ||
+      job.service?.toLowerCase().includes('launch') ||
+      config.serviceName.toLowerCase().includes(job.service?.toLowerCase() || '');
     
-    // Check if the service description matches
-    const isQuickDeploy = job.serviceDescription?.toLowerCase().includes('deploy') ||
-                         job.serviceDescription?.toLowerCase().includes('trading agent') ||
-                         job.params.type === 'quick-deploy';
+    // Check if this job is in a phase where we can process it
+    // In ACP, jobs go through REQUEST -> NEGOTIATION -> TRANSACTION -> EVALUATION
+    const isProcessablePhase = 
+      job.phase === 'transaction' || 
+      job.phase === 'TRANSACTION' ||
+      job.phase === 'request' ||
+      job.phase === 'REQUEST';
     
-    return hasPaymentHash && hasUserWallet && isQuickDeploy;
+    // For quick deploy, we need to ensure it's requesting our specific service
+    return serviceMatches && isProcessablePhase;
   }
 
   /**
@@ -256,12 +272,47 @@ class QuickDeployAcpIntegration {
       // Extract the full ACP job data
       const acpJob = job.params as AcpJob;
 
+      // In ACP, the payment happens first and should be recorded in the job
+      // The job should contain the payment transaction details
+      let paymentTxHash: string | undefined;
+      let userWallet: string | undefined;
+      let agentName: string | undefined;
+
+      // Check different possible locations for the payment info
+      // This could be in params, memos, or transaction data
+      if (acpJob.params) {
+        paymentTxHash = acpJob.params.paymentTxHash || acpJob.params.txHash;
+        userWallet = acpJob.params.userWallet || acpJob.params.wallet;
+        agentName = acpJob.params.agentName || acpJob.params.name;
+      }
+
+      // Also check if payment info is in the job's transaction phase data
+      // In ACP, transactions are recorded in the TRANSACTION phase
+      if (!paymentTxHash && (acpJob as any).transactionHash) {
+        paymentTxHash = (acpJob as any).transactionHash;
+      }
+
+      // Use buyer address as fallback for user wallet
+      if (!userWallet) {
+        userWallet = job.buyer || acpJob.providerAddress;
+      }
+
+      if (!paymentTxHash) {
+        Logger.error(`No payment transaction hash found for job ${job.id}`);
+        await this.rejectJob(acpJob, 'Payment transaction hash not found in job data');
+        this.jobQueue.markFailed(job.id);
+        this.slaManager.markRejected(job.id, 'Missing payment hash');
+        return;
+      }
+
       // Prepare request parameters for the quick deploy service
       const quickDeployParams = {
-        paymentTxHash: acpJob.params?.paymentTxHash || '',
-        userWallet: acpJob.params?.userWallet || job.buyer,
-        agentName: acpJob.params?.agentName,
+        paymentTxHash,
+        userWallet: userWallet || job.buyer,
+        agentName,
       };
+
+      Logger.info(`Processing with params: ${JSON.stringify(quickDeployParams)}`);
 
       // Call the quick deploy service to process the request
       const response = await this.agentService.processRequest({
