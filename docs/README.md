@@ -59,6 +59,14 @@ Path from sandbox to production:
 
 ## 🛠️ Technical Implementation
 
+### [Kosher Capital Integration](kosher-capital-index.md) 🆕 **New Integration**
+Deploy AI trading agents through Kosher Capital:
+- Complete integration documentation
+- Visual flow diagrams
+- Quick start guide
+- Developer architecture guide
+- API reference and troubleshooting
+
 ### [Custom Logic Implementation Guide](CUSTOM-LOGIC-GUIDE.md) ⭐ **Beginner-Friendly**
 Add your business logic without deep coding knowledge:
 - **Modify Existing Service**: Simple template customization
