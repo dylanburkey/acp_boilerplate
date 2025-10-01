@@ -1,93 +1,137 @@
-# Kosher Capital Quick Deploy Service
-
-This service integrates with Kosher Capital's infrastructure to enable AI trading agent deployment through the Agent Communication Protocol (ACP).
+# Quick Deploy ACP Service
 
 ## Overview
 
-The Quick Deploy service handles the complete deployment flow:
-1. **Contract Deployment**: Creates personal fund contracts on Base network
-2. **Payment Processing**: Handles 50 USDC payments
-3. **API Integration**: Registers agents with Kosher Capital
-4. **Status Tracking**: Provides real-time deployment monitoring
+The Quick Deploy service is an ACP (Agent Commerce Protocol) seller agent that provides AI trading agent deployment services through the Virtuals Protocol ecosystem. Users interact with this service through Butler (the ACP frontend UI) to deploy trading agents on the Kosher Capital platform.
 
-## Documentation
+## Architecture
 
-- **[Full Documentation](../../docs/kosher-capital-index.md)** - Complete integration guide
-- **[Quick Reference](../../docs/kosher-capital-quick-reference.md)** - 5-minute setup
-- **[Visual Guide](../../docs/kosher-capital-visual-flow-guide.md)** - Flow diagrams
-- **[Developer Guide](../../docs/kosher-capital-developer-guide.md)** - Architecture details
+This service implements the ACP seller agent pattern:
+- **Butler** = Frontend UI where users interact
+- **ACP** = The protocol that handles agent commerce
+- **Our Service** = A seller agent offering quick deployment services
+- **Payment** = Handled by ACP's escrow system
 
-## Module Structure
+## Key Components
 
-```
-quickDeploy/
-├── constants.ts           # Configuration constants
-├── contractUtils.ts       # Blockchain interactions
-├── quickDeployService.ts  # Main service logic
-├── notificationService.ts # Webhook handling
-├── transactionTracker.ts  # State management
-├── statusApi.ts          # REST API
-└── index.ts              # Exports
-```
+### Core Services
 
-## Quick Start
+- **`acpSellerAgent.ts`** - Main ACP seller agent implementation
+- **`contractUtils.ts`** - Blockchain contract interactions
+- **`kosherCapitalClient.ts`** - Kosher Capital API client
+- **`notificationService.ts`** - Webhook notification service
+- **`transactionTracker.ts`** - Transaction state management
+- **`eventMonitor.ts`** - Blockchain event monitoring
+- **`statusApi.ts`** - REST API for status queries
 
-```bash
-# Configure environment
-cp .env.quickdeploy.example .env
-# Add your SHEKEL_API_KEY
+### Supporting Modules
 
-# Run service
-pnpm quickdeploy
+- **`types.ts`** - TypeScript type definitions
+- **`errors.ts`** - Custom error classes and handling
+- **`retry.ts`** - Retry logic and resilience patterns
+- **`constants.ts`** - Configuration values and constants
 
-# Test deployment
-pnpm tsx test-utils/testQuickDeploy.ts
-```
+## How It Works
 
-## Key Features
-
-- **Modular Architecture**: Easy to extend and customize
-- **Type-Safe**: Full TypeScript implementation  
-- **Error Handling**: Comprehensive retry logic
-- **Real-time Monitoring**: Status API and webhooks
-- **Transaction Tracking**: Complete audit trail
+1. **User requests deployment through Butler UI**
+2. **ACP creates a job and routes it to our seller agent**
+3. **Our agent processes the job through phases:**
+   - REQUEST: Validate and accept the job
+   - NEGOTIATION: Agree on terms (50 USDC fixed price)
+   - TRANSACTION: Execute deployment and deliver results
+4. **Deployment involves:**
+   - Creating personal fund contract
+   - Processing payment
+   - Enabling trading
+   - Registering with Kosher Capital API
+5. **Results delivered back through ACP to Butler**
 
 ## Configuration
 
-Required environment variables:
-- `SHEKEL_API_KEY` - From Kosher Capital
-- `GAME_API_KEY` - GAME protocol key
-- `WHITELISTED_WALLET_PRIVATE_KEY` - Deployment wallet
+### Environment Variables
 
-See [.env.quickdeploy.example](../../.env.quickdeploy.example) for full configuration.
+```bash
+# Required
+SHEKEL_API_KEY=your-kosher-capital-api-key
+WHITELISTED_WALLET_PRIVATE_KEY=your-private-key
+WHITELISTED_WALLET_ENTITY_ID=your-entity-id
+SELLER_AGENT_WALLET_ADDRESS=0x...
 
-## API Endpoints
+# Optional
+ACP_RPC_URL=custom-rpc-url
+SERVICE_PRICE=50
+```
 
-Status API runs on port 3001:
-- `GET /health` - Health check
-- `GET /api/deployments/:jobId` - Get deployment status
-- `GET /api/deployments` - List all deployments
-- `GET /api/statistics` - Deployment statistics
+### Contract Addresses (Base Network)
+
+- Factory: `0x0fE1eBa3e809CD0Fc34b6a3666754B7A042c169a`
+- USDC: `0x833589fcd6edb6e08f4c7c32d4f71b54bda02913`
+- Payment Recipient: `0x48597AfA1c4e7530CA8889bA9291494757FEABD2`
+
+## Usage
+
+### Initialize the ACP Agent
+
+```typescript
+import { QuickDeployACPAgent } from './quickDeploy';
+
+const agent = new QuickDeployACPAgent();
+await agent.initialize();
+
+// Agent is now ready to receive jobs from ACP
+```
+
+### Direct API Usage (for testing)
+
+```typescript
+import { getKosherCapitalClient } from './quickDeploy';
+
+const client = getKosherCapitalClient();
+const result = await client.quickDeploy({
+  agentName: 'ACP-Agent-123',
+  contractCreationTxnHash: '0x...',
+  creating_user_wallet_address: '0x...',
+  paymentTxnHash: '0x...',
+  deploySource: 'ACP',
+});
+```
 
 ## Testing
 
 ```bash
-# Unit tests
-pnpm test quickDeploy
+# Run unit tests
+npm test -- src/services/quickDeploy/__tests__
 
-# Integration tests
-pnpm tsx test-utils/mockKosherCapital.ts  # Terminal 1
-pnpm quickdeploy                          # Terminal 2
-pnpm tsx test-utils/testQuickDeploy.ts    # Terminal 3
+# Test with ACP sandbox
+# 1. Register your agent at https://app.virtuals.io/acp/join
+# 2. Set up test agents (buyer and seller)
+# 3. Run your seller agent
+# 4. Initiate test jobs from buyer agent
 ```
+
+## Error Handling
+
+The service uses structured error handling with custom error classes:
+- `ValidationError` - Input validation failures
+- `ProcessingError` - Job processing issues
+- `ServiceError` - External service failures
+- `ContractError` - Blockchain operation failures
+- `APIError` - API call failures
+
+All errors are properly typed and include relevant context for debugging.
+
+## Deployment Checklist
+
+1. ✅ Set up environment variables
+2. ✅ Register agent on ACP platform
+3. ✅ Whitelist developer wallet
+4. ✅ Fund wallet with ETH for gas
+5. ✅ Test in sandbox environment
+6. ✅ Graduate to production when ready
 
 ## Support
 
-- Check [troubleshooting guide](../../docs/kosher-capital-integration.md#troubleshooting)
-- Enable debug logs: `LOG_LEVEL=debug pnpm quickdeploy`
-- Review transaction logs in `./test-logs/`
-
----
-
-**Maintained by**: Athena AI Team  
-**Last Updated**: October 2025
+For issues or questions:
+- Check the [troubleshooting guide](../../docs/troubleshooting.md)
+- Review [ACP documentation](https://whitepaper.virtuals.io/info-hub/agent-commerce-protocol-acp-guide)
+- Contact the Kosher Capital team

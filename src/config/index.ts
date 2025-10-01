@@ -1,4 +1,6 @@
-import dotenv from 'dotenv';
+    // ACP Seller Agent configuration
+    sellerAgentWalletAddress: process.env.SELLER_AGENT_WALLET_ADDRESS || process.env.AGENT_WALLET_ADDRESS!,    // Required for ACP now
+    'SELLER_AGENT_WALLET_ADDRESS',import dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
@@ -12,6 +14,9 @@ export interface Config {
   whitelistedWalletPrivateKey: string;
   whitelistedWalletEntityId: number;
   agentWalletAddress: string;
+  
+  // ACP Seller Agent configuration
+  sellerAgentWalletAddress: string;
   
   // Service configuration
   serviceName: string;

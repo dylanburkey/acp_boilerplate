@@ -36,10 +36,10 @@ export const TRANSACTION_CONFIG = {
   CONFIRMATION_BLOCKS: 2,
 } as const;
 
-// Butler Integration Configuration
-export const BUTLER_CONFIG = {
+// ACP Configuration
+export const ACP_CONFIG = {
   PAYMENT_AMOUNT_USDC: 50,
-  JOB_PREFIX: 'butler-job',
+  JOB_PREFIX: 'acp-job',
   AGENT_PREFIX: 'ACP', // Per meeting: include "ACP" in agent names
   PAYMENT_RECIPIENT: '0x48597AfA1c4e7530CA8889bA9291494757FEABD2',
   PAYMENT_VERIFICATION_REQUIRED: true,
@@ -74,7 +74,7 @@ export const ERROR_MESSAGES = {
   MISSING_API_KEY: 'SHEKEL_API_KEY environment variable not configured.',
   INVALID_REQUEST: 'Invalid request - not a quick deploy request',
   MISSING_USER_WALLET: 'Missing required parameter: userWallet',
-  BUTLER_PAYMENT_REQUIRED: 'Butler must provide paymentTxHash after user payment',
+  PAYMENT_REQUIRED: 'Payment transaction hash required',
   INVALID_PAYMENT: 'Invalid payment transaction',
   INSUFFICIENT_BALANCE: 'Insufficient USDC balance',
   DEPLOYMENT_FAILED: 'Failed to deploy trading agent',
@@ -114,8 +114,6 @@ export const ENV_KEYS = {
   SERVICE_PRICE: 'SERVICE_PRICE',
   FACTORY_CONTRACT_ADDRESS: 'FACTORY_CONTRACT_ADDRESS',
   ACP_RPC_URL: 'ACP_RPC_URL',
-  BUTLER_CALLBACK_URL: 'BUTLER_CALLBACK_URL',
-  BUTLER_API_KEY: 'BUTLER_API_KEY',
 } as const;
 
 // Logging Prefixes
@@ -126,5 +124,5 @@ export const LOG_PREFIX = {
   WARNING: '⚠️',
   INFO: '📋',
   PROCESSING: '⚙️',
-  BUTLER: '🤖',
+  ACP: '🤖',
 } as const;
