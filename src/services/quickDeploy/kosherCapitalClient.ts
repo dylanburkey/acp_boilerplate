@@ -2,11 +2,11 @@
  * @fileoverview Kosher Capital API client service
  * Encapsulates all interactions with the Kosher Capital Quick Deploy API
  * 
- * @author Athena AI Team
+ * @author Dylan Burkey
  * @license MIT
  */
 
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
+import axios, { AxiosInstance, AxiosError } from 'axios';
 import { Logger } from '../../utils/logger';
 import { 
   QuickDeployAPIRequest, 

@@ -2,7 +2,7 @@
  * @fileoverview ACP Seller Agent implementation for Quick Deploy service
  * This service registers as an ACP seller agent to handle AI trading agent deployments
  * 
- * @author Athena AI Team  
+ * @author Dylan Burkey  
  * @license MIT
  */
 
@@ -20,14 +20,11 @@ import { getKosherCapitalClient } from './kosherCapitalClient';
 import {
   QuickDeployServiceRequirement,
   QuickDeployDeliverable,
-  ServiceType,
   TransactionStatus,
   DeploymentParams,
-  DeploymentResult,
   isQuickDeployRequest,
 } from './types';
 import {
-  ValidationError,
   ProcessingError,
   ErrorFactory,
   ErrorHandler,
@@ -117,10 +114,10 @@ export class QuickDeployACPAgent {
 
       // Build ACP contract client
       const acpContractClient = await AcpContractClient.build(
-        config.whitelistedWalletPrivateKey,
+        config.whitelistedWalletPrivateKey as `0x${string}`,
         config.whitelistedWalletEntityId,
-        config.sellerAgentWalletAddress,
-        config.acpRpcUrl // Optional custom RPC
+        config.sellerAgentWalletAddress as `0x${string}`,
+        config.acpRpcUrl ? { rpcUrl: config.acpRpcUrl } : undefined
       );
 
       // Initialize ACP client with callbacks
@@ -183,7 +180,6 @@ export class QuickDeployACPAgent {
    */
   private async initializeJobQueue(): Promise<void> {
     const processJob = async (job: AcpJob): Promise<void> => {
-      let prompt = '';
 
       if (
         job.phase === AcpJobPhases.REQUEST &&
@@ -255,7 +251,7 @@ export class QuickDeployACPAgent {
       this.logger.info(`${LOG_PREFIX.PROCESSING} Processing REQUEST phase for job ${job.id}`);
 
       // Store job
-      this.activeJobs.set(job.id, job);
+      this.activeJobs.set(String(job.id), job);
 
       // Parse service requirements
       const requirements = job.serviceRequirement;
@@ -272,10 +268,11 @@ export class QuickDeployACPAgent {
 
       // Create transaction record
       const agentName = requirements.agentName || `ACP-${Date.now()}`;
+      const buyerAddress = (job as any).buyer || (job as any).providerAddress || 'Unknown';
       const transaction = transactionTracker.createTransaction(
-        job.id,
+        String(job.id),
         'pending', // No payment TX yet in ACP flow
-        job.buyer,
+        buyerAddress,
         agentName
       );
       
@@ -327,12 +324,12 @@ export class QuickDeployACPAgent {
   private async handleTransactionPhase(job: AcpJob): Promise<void> {
     try {
       this.logger.info(`${LOG_PREFIX.PROCESSING} Processing TRANSACTION phase for job ${job.id}`);
-      
+
       // Update transaction status
-      const transaction = transactionTracker.getTransactionByJobId(job.id);
+      const transaction = transactionTracker.getTransactionByJobId(String(job.id));
       if (transaction) {
-        transactionTracker.updateTransaction(transaction.id, { 
-          status: TransactionStatus.PROCESSING 
+        transactionTracker.updateTransaction(String(transaction.id), {
+          status: TransactionStatus.PROCESSING
         });
       }
 
@@ -379,11 +376,11 @@ export class QuickDeployACPAgent {
         `${LOG_PREFIX.ERROR} Error in TRANSACTION phase:`,
         structuredError.toJSON()
       );
-      
+
       // Update transaction as failed
-      const transaction = transactionTracker.getTransactionByJobId(job.id);
+      const transaction = transactionTracker.getTransactionByJobId(String(job.id));
       if (transaction) {
-        transactionTracker.updateTransaction(transaction.id, {
+        transactionTracker.updateTransaction(String(transaction.id), {
           status: TransactionStatus.FAILED,
           error: structuredError.message,
         });
@@ -420,12 +417,13 @@ export class QuickDeployACPAgent {
       );
 
       // Execute deployment with retry logic
+      const buyerAddress = (job as any).buyer || (job as any).providerAddress || 'Unknown';
       const deploymentResult = await RetryUtil.withRetry(
         async () => {
           const params: DeploymentParams = {
-            userWallet: job.buyer,
+            userWallet: buyerAddress,
             agentName: requirements.agentName || `ACP-${Date.now()}`,
-            aiWallet: requirements.aiWallet || job.buyer,
+            aiWallet: requirements.aiWallet || buyerAddress,
           };
           
           return await this.contractUtils.deployAgent(params, wallet);
@@ -442,10 +440,11 @@ export class QuickDeployACPAgent {
       );
 
       // Call Kosher Capital API
+      const buyerAddr = (job as any).buyer || (job as any).providerAddress || 'Unknown';
       const apiResult = await this.kosherCapitalClient.quickDeploy({
         agentName: requirements.agentName || `ACP-${Date.now()}`,
         contractCreationTxnHash: deploymentResult.creationTxHash!,
-        creating_user_wallet_address: job.buyer,
+        creating_user_wallet_address: buyerAddr,
         paymentTxnHash: deploymentResult.paymentTxHash!,
         deploySource: DEPLOYMENT_CONFIG.DEPLOYMENT_SOURCE,
         referralCode: requirements.metadata?.referralCode,
@@ -454,7 +453,7 @@ export class QuickDeployACPAgent {
       if (!apiResult.success) {
         throw new ProcessingError(
           `Kosher Capital API failed: ${apiResult.error}`,
-          job.id,
+          String(job.id),
           'api-call'
         );
       }
@@ -483,10 +482,14 @@ export class QuickDeployACPAgent {
    */
   private async acceptJob(job: AcpJob, reason?: string): Promise<void> {
     if (!this.acpClient) throw new Error('ACP client not initialized');
-    
+
+    // Get the latest memo ID
+    const memos = job.memos || [];
+    const latestMemoId = memos.length > 0 ? (memos[memos.length - 1] as any).id : 0;
+
     await this.acpClient.respondJob(
       job.id,
-      job.memoIds[job.memoIds.length - 1], // Latest memo
+      latestMemoId,
       true, // accept
       reason || 'Job accepted'
     );
@@ -497,16 +500,20 @@ export class QuickDeployACPAgent {
    */
   private async rejectJob(job: AcpJob, reason: string): Promise<void> {
     if (!this.acpClient) throw new Error('ACP client not initialized');
-    
+
+    // Get the latest memo ID
+    const memos = job.memos || [];
+    const latestMemoId = memos.length > 0 ? (memos[memos.length - 1] as any).id : 0;
+
     await this.acpClient.respondJob(
       job.id,
-      job.memoIds[job.memoIds.length - 1], // Latest memo
+      latestMemoId,
       false, // reject
       reason
     );
-    
+
     // Clean up
-    this.activeJobs.delete(job.id);
+    this.activeJobs.delete(String(job.id));
   }
 
   /**
@@ -514,8 +521,14 @@ export class QuickDeployACPAgent {
    */
   private async deliverJob(job: AcpJob, deliverable: QuickDeployDeliverable): Promise<void> {
     if (!this.acpClient) throw new Error('ACP client not initialized');
-    
-    await this.acpClient.deliverJob(job.id, deliverable);
+
+    // Format deliverable according to IDeliverable interface
+    const formattedDeliverable = {
+      type: 'text/json' as const,
+      value: JSON.stringify(deliverable),
+    };
+
+    await this.acpClient.deliverJob(job.id, formattedDeliverable);
   }
 
   /**
@@ -523,13 +536,14 @@ export class QuickDeployACPAgent {
    */
   private async sendCompletionNotification(job: AcpJob, result: any): Promise<void> {
     try {
+      const buyerAddress = (job as any).buyer || (job as any).providerAddress || 'Unknown';
       const notification = notificationService.createDeploymentNotification(
-        job.id,
+        String(job.id),
         {
           success: result.success,
           data: result,
         },
-        job.buyer,
+        buyerAddress,
         result.paymentTxHash || ''
       );
       
@@ -549,9 +563,9 @@ export class QuickDeployACPAgent {
    */
   async getActiveJobs(): Promise<AcpJob[]> {
     if (!this.acpClient) throw new Error('ACP client not initialized');
-    
+
     const jobs = await this.acpClient.getActiveJobs();
-    return jobs.data || [];
+    return jobs || [];
   }
 
   /**
@@ -559,9 +573,9 @@ export class QuickDeployACPAgent {
    */
   async getCompletedJobs(): Promise<AcpJob[]> {
     if (!this.acpClient) throw new Error('ACP client not initialized');
-    
+
     const jobs = await this.acpClient.getCompletedJobs();
-    return jobs.data || [];
+    return jobs || [];
   }
 
   /**

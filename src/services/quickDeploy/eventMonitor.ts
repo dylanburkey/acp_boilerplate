@@ -12,7 +12,7 @@ import {
   CONTRACT_ADDRESSES,
   EVENTS,
   LOG_PREFIX,
-  ACP_CONFIG,
+  // ACP_CONFIG,
 } from './constants';
 import { MonitoredEvent } from './types';
 

@@ -2,7 +2,7 @@
  * @fileoverview Enhanced transaction monitoring and callback system
  * Automatically captures transaction hashes and sends them to Kosher Capital
  * 
- * @author Athena AI Team
+ * @author Dylan Burkey
  * @license MIT
  */
 
@@ -17,16 +17,16 @@ import {
   DeploymentResult,
   TransactionStatus,
   MonitoredEvent,
-  ErrorCode,
+  // ErrorCode,
 } from './types';
-import { ErrorFactory, Validators } from './errors';
+import { ErrorFactory } from './errors';
 import { RetryUtil, CircuitBreaker } from './retry';
 import {
   CONTRACT_ADDRESSES,
   EVENTS,
   LOG_PREFIX,
   ACP_CONFIG,
-  TRANSACTION_CONFIG,
+  // TRANSACTION_CONFIG,
 } from './constants';
 
 /**
