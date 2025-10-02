@@ -17,6 +17,7 @@ import { QuickDeployContract } from './contractUtils';
 import { notificationService } from './notificationService';
 import { transactionTracker } from './transactionTracker';
 import { getKosherCapitalClient } from './kosherCapitalClient';
+import { paymentMonitor } from './paymentMonitor';
 import {
   QuickDeployServiceRequirement,
   QuickDeployDeliverable,
@@ -404,20 +405,38 @@ export class QuickDeployACPAgent {
    * Execute the actual deployment
    */
   private async executeDeployment(
-    job: AcpJob, 
+    job: AcpJob,
     requirements: QuickDeployServiceRequirement
   ): Promise<any> {
     try {
       this.logger.info(`${LOG_PREFIX.PROCESSING} Executing deployment for ${requirements.agentName}`);
 
-      // Create wallet signer
+      const buyerAddress = (job as any).buyer || (job as any).providerAddress || 'Unknown';
+
+      // STEP 1: Monitor for payment transaction (50 USDC)
+      this.logger.info(`${LOG_PREFIX.PROCESSING} Waiting for payment from ${buyerAddress}...`);
+      const paymentTx = await paymentMonitor.monitorPayment(
+        buyerAddress,
+        config.servicePrice.toString(), // "50"
+        {
+          timeout: 300000, // 5 minutes
+          pollInterval: 3000, // Check every 3 seconds
+          confirmations: 1,
+        }
+      );
+
+      this.logger.info(
+        `${LOG_PREFIX.SUCCESS} Payment received! TX: ${paymentTx.hash}`,
+        { amount: `${paymentTx.amount} USDC`, block: paymentTx.blockNumber }
+      );
+
+      // STEP 2: Create wallet signer for contract deployment
       const wallet = new ethers.Wallet(
         config.whitelistedWalletPrivateKey,
         this.contractUtils['provider']
       );
 
-      // Execute deployment with retry logic
-      const buyerAddress = (job as any).buyer || (job as any).providerAddress || 'Unknown';
+      // STEP 3: Execute contract deployment with retry logic
       const deploymentResult = await RetryUtil.withRetry(
         async () => {
           const params: DeploymentParams = {
@@ -425,7 +444,7 @@ export class QuickDeployACPAgent {
             agentName: requirements.agentName || `ACP-${Date.now()}`,
             aiWallet: requirements.aiWallet || buyerAddress,
           };
-          
+
           return await this.contractUtils.deployAgent(params, wallet);
         },
         {
@@ -439,13 +458,12 @@ export class QuickDeployACPAgent {
         }
       );
 
-      // Call Kosher Capital API
-      const buyerAddr = (job as any).buyer || (job as any).providerAddress || 'Unknown';
+      // STEP 4: Call Kosher Capital API with both transaction hashes
       const apiResult = await this.kosherCapitalClient.quickDeploy({
         agentName: requirements.agentName || `ACP-${Date.now()}`,
         contractCreationTxnHash: deploymentResult.creationTxHash!,
-        creating_user_wallet_address: buyerAddr,
-        paymentTxnHash: deploymentResult.paymentTxHash!,
+        creating_user_wallet_address: buyerAddress,
+        paymentTxnHash: paymentTx.hash, // Use captured payment TX hash
         deploySource: DEPLOYMENT_CONFIG.DEPLOYMENT_SOURCE,
         referralCode: requirements.metadata?.referralCode,
       });
@@ -461,6 +479,7 @@ export class QuickDeployACPAgent {
       return {
         success: true,
         ...deploymentResult,
+        paymentTxHash: paymentTx.hash, // Include payment TX hash in result
         apiResponse: apiResult.data,
       };
 

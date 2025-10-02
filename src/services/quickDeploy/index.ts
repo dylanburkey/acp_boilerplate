@@ -13,6 +13,7 @@ export { KosherCapitalNotificationService, notificationService } from './notific
 export { TransactionTracker, transactionTracker } from './transactionTracker';
 export { createStatusApi, startStatusApi } from './statusApi';
 export { EventMonitor } from './eventMonitor';
+export { PaymentMonitor, paymentMonitor } from './paymentMonitor';
 
 // API clients
 export { KosherCapitalClient, getKosherCapitalClient } from './kosherCapitalClient';
