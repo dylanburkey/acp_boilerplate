@@ -1,6 +1,4 @@
-    // ACP Seller Agent configuration
-    sellerAgentWalletAddress: process.env.SELLER_AGENT_WALLET_ADDRESS || process.env.AGENT_WALLET_ADDRESS!,    // Required for ACP now
-    'SELLER_AGENT_WALLET_ADDRESS',import dotenv from 'dotenv';
+import dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
@@ -106,6 +104,9 @@ export function loadConfig(): Config {
     whitelistedWalletEntityId: parseInt(process.env.WHITELISTED_WALLET_ENTITY_ID || '1'),
     agentWalletAddress: process.env.AGENT_WALLET_ADDRESS!,
     
+    // ACP Seller Agent configuration
+    sellerAgentWalletAddress: process.env.SELLER_AGENT_WALLET_ADDRESS || process.env.AGENT_WALLET_ADDRESS!,
+    
     // Service configuration
     serviceName: process.env.SERVICE_NAME!,
     serviceDescription: process.env.SERVICE_DESCRIPTION!,
@@ -128,6 +129,20 @@ export function loadConfig(): Config {
     maxGasPrice: parseInt(process.env.MAX_GAS_PRICE || '100'),
     txConfirmationTimeout: parseInt(process.env.TX_CONFIRMATION_TIMEOUT || '60000'),
     
+    // Quick Deploy specific configuration
+    factoryContractAddress: process.env.FACTORY_CONTRACT_ADDRESS,
+    paymentRecipientAddress: process.env.PAYMENT_RECIPIENT_ADDRESS,
+    usdcContractAddress: process.env.USDC_CONTRACT_ADDRESS || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    
+    // Service Level Agreement (SLA)
+    jobExpirationHours: parseInt(process.env.JOB_EXPIRATION_HOURS || '24'),
+    enableJobExpiration: process.env.ENABLE_JOB_EXPIRATION !== 'false',
+    
+    // Environment & Network
+    environment: (process.env.ENVIRONMENT || 'sandbox') as 'sandbox' | 'production',
+    network: (process.env.NETWORK || 'base') as 'base' | 'sepolia',
+    sandboxTransactionCount: parseInt(process.env.SANDBOX_TRANSACTION_COUNT || '0'),
+    
     // Logging
     logLevel: process.env.LOG_LEVEL || 'info',
     logApiOutput: process.env.LOG_API_OUTPUT === 'true',
@@ -141,20 +156,6 @@ export function loadConfig(): Config {
     keepCompletedJobs: parseInt(process.env.KEEP_COMPLETED_JOBS || '5'),
     keepCancelledJobs: parseInt(process.env.KEEP_CANCELLED_JOBS || '5'),
     ignoredJobIds: process.env.IGNORED_JOB_IDS?.split(',').filter(Boolean) || [],
-    
-    // Quick Deploy specific configuration
-    factoryContractAddress: process.env.FACTORY_CONTRACT_ADDRESS,
-    paymentRecipientAddress: process.env.PAYMENT_RECIPIENT_ADDRESS,
-    usdcContractAddress: process.env.USDC_CONTRACT_ADDRESS || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-    
-    // Service Level Agreement (SLA)
-    jobExpirationHours: parseInt(process.env.JOB_EXPIRATION_HOURS || '24'),
-    enableJobExpiration: process.env.ENABLE_JOB_EXPIRATION !== 'false',
-    
-    // Environment & Network
-    environment: (process.env.ENVIRONMENT || 'sandbox') as 'sandbox' | 'production',
-    network: (process.env.NETWORK || 'base') as 'base' | 'sepolia',
-    sandboxTransactionCount: parseInt(process.env.SANDBOX_TRANSACTION_COUNT || '0')
   };
 }
 

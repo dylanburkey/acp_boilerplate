@@ -1,40 +1,8 @@
 /**
- * Enhanced deliverable with callback status
- */
-export interface EnhancedQuickDeployDeliverable extends QuickDeployDeliverable {
-  callbackSent?: boolean;
-  webhookResponse?: any;
-  preCacheUsed?: boolean;
-}
-
-/**
- * Webhook configuration for callbacks
- */
-export interface WebhookConfig {
-  url: string;
-  headers?: Record<string, string>;
-  retryAttempts?: number;
-  retryDelayMs?: number;
-}
-
-/**
- * Enhanced deployment metadata with callback info
- */
-export interface EnhancedDeploymentMetadata extends DeploymentMetadata {
-  webhookUrl?: string;
-  autoCaptureTxHash?: boolean;
-  preCachedData?: {
-    agentName: string;
-    estimatedGas: string;
-    nonce: number;
-  };
-}
-
-/**
  * @fileoverview Type definitions for Quick Deploy ACP integration
  * Centralizes all TypeScript interfaces and types for the service
  * 
- * @author Athena AI Team
+ * @author Dylan Burkey
  * @license MIT
  */
 
@@ -84,6 +52,38 @@ export interface QuickDeployDeliverable {
   gasUsed?: string;
   error?: string;
   timestamp: string;
+}
+
+/**
+ * Enhanced deliverable with callback status
+ */
+export interface EnhancedQuickDeployDeliverable extends QuickDeployDeliverable {
+  callbackSent?: boolean;
+  webhookResponse?: any;
+  preCacheUsed?: boolean;
+}
+
+/**
+ * Webhook configuration for callbacks
+ */
+export interface WebhookConfig {
+  url: string;
+  headers?: Record<string, string>;
+  retryAttempts?: number;
+  retryDelayMs?: number;
+}
+
+/**
+ * Enhanced deployment metadata with callback info
+ */
+export interface EnhancedDeploymentMetadata extends DeploymentMetadata {
+  webhookUrl?: string;
+  autoCaptureTxHash?: boolean;
+  preCachedData?: {
+    agentName: string;
+    estimatedGas: string;
+    nonce: number;
+  };
 }
 
 // ==================== Transaction Types ====================

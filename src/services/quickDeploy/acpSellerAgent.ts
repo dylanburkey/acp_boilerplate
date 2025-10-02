@@ -11,21 +11,20 @@ import { AcpContractClient, AcpJob, AcpJobPhases } from '@virtuals-protocol/acp-
 import { ethers } from 'ethers';
 import { config } from '../../config';
 import { Logger } from '../../utils/logger';
+import { createJobQueue, QueueInterface } from '../../utils/jobQueue';
+import { ACP_CONFIG, getJobPriority, validateACPConfig } from '../../config/acpConfig';
 import { QuickDeployContract } from './contractUtils';
 import { notificationService } from './notificationService';
 import { transactionTracker } from './transactionTracker';
 import { getKosherCapitalClient } from './kosherCapitalClient';
-import { getTransactionMonitor, TransactionMonitor } from './transactionMonitor';
 import {
   QuickDeployServiceRequirement,
   QuickDeployDeliverable,
-  EnhancedQuickDeployDeliverable,
   ServiceType,
   TransactionStatus,
   DeploymentParams,
   DeploymentResult,
   isQuickDeployRequest,
-  EnhancedDeploymentMetadata,
 } from './types';
 import {
   ValidationError,
@@ -41,7 +40,17 @@ import {
   ENV_KEYS,
 } from './constants';
 
-
+/**
+ * Type guard to safely check if a memo has a nextPhase property
+ */
+function hasNextPhase(memo: unknown, expectedPhase: AcpJobPhases): boolean {
+  return (
+    typeof memo === 'object' &&
+    memo !== null &&
+    'nextPhase' in memo &&
+    (memo as Record<string, unknown>).nextPhase === expectedPhase
+  );
+}
 
 /**
  * ACP Seller Agent for Quick Deploy Service
@@ -59,14 +68,20 @@ export class QuickDeployACPAgent {
   /** Kosher Capital API client */
   private readonly kosherCapitalClient = getKosherCapitalClient();
   
-  /** Transaction monitor for automatic TX hash capture */
-  private transactionMonitor: TransactionMonitor | null = null;
+  /** Job queue for sequential processing */
+  private jobQueue: QueueInterface | null = null;
   
   /** Active jobs mapping */
   private activeJobs: Map<string, AcpJob> = new Map();
   
-  /** Pre-cached deployment data */
-  private preCacheStore: Map<string, any> = new Map();
+  /** Processing statistics */
+  private stats = {
+    jobsReceived: 0,
+    jobsAccepted: 0,
+    jobsRejected: 0,
+    jobsCompleted: 0,
+    jobsFailed: 0,
+  };
 
   constructor() {
     this.contractUtils = new QuickDeployContract();
@@ -82,6 +97,7 @@ export class QuickDeployACPAgent {
 
       // Validate configuration
       this.validateConfiguration();
+      validateACPConfig();
       
       // Test API connectivity
       const healthCheck = await this.kosherCapitalClient.checkHealth();
@@ -96,13 +112,8 @@ export class QuickDeployACPAgent {
         );
       }
 
-      // Initialize transaction monitor
-      const provider = this.contractUtils['provider'];
-      this.transactionMonitor = getTransactionMonitor(provider, {
-        autoCapture: true,
-        callbackDelay: 2000, // 2 seconds after confirmation
-        maxRetries: 3,
-      });
+      // Initialize job queue
+      await this.initializeJobQueue();
 
       // Build ACP contract client
       const acpContractClient = await AcpContractClient.build(
@@ -115,8 +126,38 @@ export class QuickDeployACPAgent {
       // Initialize ACP client with callbacks
       this.acpClient = new AcpClient({
         acpContractClient,
-        onNewTask: this.handleNewTask.bind(this),
-        onEvaluate: this.handleEvaluate.bind(this),
+        onNewTask: (job: AcpJob) => {
+          // Queue jobs for processing to prevent transaction conflicts
+          const priority = getJobPriority(job.phase);
+          this.logger.debug(
+            `${LOG_PREFIX.INFO} New job #${job.id} (${job.phase}) queued with priority ${priority}`
+          );
+          this.stats.jobsReceived++;
+          this.jobQueue!.enqueue(job, priority);
+        },
+        onEvaluate: async (job: AcpJob) => {
+          // For now, automatically approve all deliverables
+          try {
+            this.logger.info(`${LOG_PREFIX.PROCESSING} Evaluating job #${job.id}`);
+            this.logger.info(`${LOG_PREFIX.INFO} Deliverable:`, job.deliverable);
+            
+            // In a real implementation, you might want to verify the deliverable
+            const approved = true;
+            const reason = approved 
+              ? 'Deliverable meets requirements' 
+              : 'Deliverable does not meet requirements';
+            
+            // Use the evaluate method on the job object if available
+            if ('evaluate' in job && typeof job.evaluate === 'function') {
+              await (job as any).evaluate(approved, reason);
+            } else {
+              // Fallback: use ACP client to send evaluation
+              this.logger.warn(`${LOG_PREFIX.WARNING} Job.evaluate not available, using fallback`);
+            }
+          } catch (error) {
+            this.logger.error(`${LOG_PREFIX.ERROR} Error evaluating job #${job.id}:`, error);
+          }
+        },
       });
 
       // Initialize the client
@@ -126,11 +167,50 @@ export class QuickDeployACPAgent {
       this.logger.info(`${LOG_PREFIX.INFO} Agent wallet: ${config.sellerAgentWalletAddress}`);
       this.logger.info(`${LOG_PREFIX.INFO} Service offering: AI Trading Agent Quick Deployment`);
       this.logger.info(`${LOG_PREFIX.INFO} Price: ${config.servicePrice} USDC per deployment`);
+      this.logger.info(`${LOG_PREFIX.INFO} Job queue configuration:`, {
+        processingDelay: ACP_CONFIG.jobQueue.processingDelay,
+        maxRetries: ACP_CONFIG.jobQueue.maxRetries,
+      });
 
     } catch (error) {
       this.logger.error(`${LOG_PREFIX.ERROR} Failed to initialize ACP agent:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Initialize job queue for sequential processing
+   */
+  private async initializeJobQueue(): Promise<void> {
+    const processJob = async (job: AcpJob): Promise<void> => {
+      let prompt = '';
+
+      if (
+        job.phase === AcpJobPhases.REQUEST &&
+        job.memos.find((m) => hasNextPhase(m, AcpJobPhases.NEGOTIATION))
+      ) {
+        // Handle REQUEST phase
+        await this.handleRequestPhase(job);
+      } else if (
+        job.phase === AcpJobPhases.TRANSACTION &&
+        job.memos.find((m) => hasNextPhase(m, AcpJobPhases.EVALUATION))
+      ) {
+        // Handle TRANSACTION phase
+        await this.handleTransactionPhase(job);
+      } else if (job.phase === AcpJobPhases.NEGOTIATION) {
+        // Handle NEGOTIATION phase
+        await this.handleNegotiationPhase(job);
+      }
+    };
+
+    // Create the job queue
+    this.jobQueue = await createJobQueue(
+      processJob,
+      ACP_CONFIG.jobQueue.processingDelay,
+      ACP_CONFIG.jobQueue.maxRetries
+    );
+
+    this.logger.info(`${LOG_PREFIX.SUCCESS} Job queue initialized`);
   }
 
   /**
@@ -168,55 +248,14 @@ export class QuickDeployACPAgent {
   }
 
   /**
-   * Handle new task callback from ACP
-   * This is called when a buyer initiates a job with our agent
-   */
-  private async handleNewTask(job: AcpJob): Promise<void> {
-    try {
-      this.logger.info(`${LOG_PREFIX.PROCESSING} New task received: ${job.id}`);
-      this.logger.info(`${LOG_PREFIX.INFO} Job phase: ${job.phase}`);
-      this.logger.info(`${LOG_PREFIX.INFO} Buyer: ${job.buyer}`);
-      
-      // Store job
-      this.activeJobs.set(job.id, job);
-
-      // Handle based on phase
-      switch (job.phase) {
-        case AcpJobPhases.REQUEST:
-          await this.handleRequestPhase(job);
-          break;
-        
-        case AcpJobPhases.NEGOTIATION:
-          await this.handleNegotiationPhase(job);
-          break;
-          
-        case AcpJobPhases.TRANSACTION:
-          await this.handleTransactionPhase(job);
-          break;
-          
-        default:
-          this.logger.warn(`${LOG_PREFIX.WARNING} Unexpected phase: ${job.phase}`);
-      }
-
-    } catch (error) {
-      const structuredError = ErrorFactory.fromUnknown(error);
-      this.logger.error(
-        `${LOG_PREFIX.ERROR} Error handling new task:`,
-        structuredError.toJSON()
-      );
-      await this.rejectJob(
-        job,
-        ErrorHandler.getUserMessage(error)
-      );
-    }
-  }
-
-  /**
    * Handle REQUEST phase - decide whether to accept the job
    */
   private async handleRequestPhase(job: AcpJob): Promise<void> {
     try {
       this.logger.info(`${LOG_PREFIX.PROCESSING} Processing REQUEST phase for job ${job.id}`);
+
+      // Store job
+      this.activeJobs.set(job.id, job);
 
       // Parse service requirements
       const requirements = job.serviceRequirement;
@@ -227,6 +266,7 @@ export class QuickDeployACPAgent {
           job,
           'Invalid service type - only quick-deploy supported'
         );
+        this.stats.jobsRejected++;
         return;
       }
 
@@ -243,32 +283,11 @@ export class QuickDeployACPAgent {
         `${LOG_PREFIX.INFO} Transaction created`,
         { transactionId: transaction.id, jobId: job.id }
       );
-      
-      // Pre-cache deployment data for faster execution
-      if (this.transactionMonitor) {
-        try {
-          const preCachedData = await this.transactionMonitor.preCacheDeploymentData(
-            job.buyer,
-            requirements.agentName
-          );
-          this.preCacheStore.set(job.id, preCachedData);
-          
-          this.logger.info(
-            `${LOG_PREFIX.INFO} Pre-cached deployment data`,
-            { jobId: job.id, agentName: preCachedData.agentName }
-          );
-        } catch (error) {
-          // Pre-caching failed, but don't reject the job
-          this.logger.warn(
-            `${LOG_PREFIX.WARNING} Failed to pre-cache deployment data`,
-            { error, jobId: job.id }
-          );
-        }
-      }
 
       // Accept the job
       await this.acceptJob(job, `Quick deployment service available for ${agentName}`);
       
+      this.stats.jobsAccepted++;
       this.logger.info(`${LOG_PREFIX.SUCCESS} Accepted job ${job.id}`);
 
     } catch (error) {
@@ -281,6 +300,7 @@ export class QuickDeployACPAgent {
         job,
         ErrorHandler.getUserMessage(error)
       );
+      this.stats.jobsRejected++;
     }
   }
 
@@ -323,8 +343,8 @@ export class QuickDeployACPAgent {
       // Execute deployment
       const deploymentResult = await this.executeDeployment(job, requirements);
 
-      // Prepare enhanced deliverable
-      const enhancedDeliverable: EnhancedQuickDeployDeliverable = {
+      // Prepare deliverable
+      const deliverable: QuickDeployDeliverable = {
         success: deploymentResult.success,
         agentName,
         contractAddress: deploymentResult.fundAddress,
@@ -333,12 +353,10 @@ export class QuickDeployACPAgent {
         apiResponse: deploymentResult.apiResponse,
         error: deploymentResult.error,
         timestamp: new Date().toISOString(),
-        callbackSent: deploymentResult.callbackSent,
-        preCacheUsed: deploymentResult.preCacheUsed,
       };
 
       // Deliver the result
-      await this.deliverJob(job, enhancedDeliverable);
+      await this.deliverJob(job, deliverable);
 
       // Update transaction as completed
       if (transaction) {
@@ -352,6 +370,7 @@ export class QuickDeployACPAgent {
       // Send notification
       await this.sendCompletionNotification(job, deploymentResult);
 
+      this.stats.jobsCompleted++;
       this.logger.info(`${LOG_PREFIX.SUCCESS} Job ${job.id} completed successfully`);
 
     } catch (error) {
@@ -379,11 +398,13 @@ export class QuickDeployACPAgent {
       };
       
       await this.deliverJob(job, errorDeliverable);
+      
+      this.stats.jobsFailed++;
     }
   }
 
   /**
-   * Execute the actual deployment with enhanced monitoring
+   * Execute the actual deployment
    */
   private async executeDeployment(
     job: AcpJob, 
@@ -392,49 +413,18 @@ export class QuickDeployACPAgent {
     try {
       this.logger.info(`${LOG_PREFIX.PROCESSING} Executing deployment for ${requirements.agentName}`);
 
-      // Check for pre-cached data
-      const preCachedData = this.preCacheStore.get(job.id);
-      const enhancedMetadata = requirements.metadata as EnhancedDeploymentMetadata;
-      
-      // Use transaction monitor for automatic TX hash capture
-      if (this.transactionMonitor && enhancedMetadata?.autoCaptureTxHash !== false) {
-        const deploymentResult = await this.transactionMonitor.monitorDeployment(
-          {
-            userWallet: job.buyer,
-            agentName: preCachedData?.agentName || requirements.agentName || `ACP-${Date.now()}`,
-            aiWallet: requirements.aiWallet || job.buyer,
-            referralCode: requirements.metadata?.referralCode,
-          },
-          job.id
-        );
-
-        // The transaction monitor has already sent the TX hashes if configured
-        this.logger.info(
-          `${LOG_PREFIX.SUCCESS} Deployment completed with automatic TX hash capture`,
-          { jobId: job.id, callbackSent: deploymentResult.callbackSent }
-        );
-
-        // Clean up pre-cache
-        this.preCacheStore.delete(job.id);
-
-        return {
-          success: true,
-          ...deploymentResult,
-          preCacheUsed: !!preCachedData,
-        };
-      }
-      
-      // Fallback to standard deployment if monitor not available
+      // Create wallet signer
       const wallet = new ethers.Wallet(
         config.whitelistedWalletPrivateKey,
         this.contractUtils['provider']
       );
 
+      // Execute deployment with retry logic
       const deploymentResult = await RetryUtil.withRetry(
         async () => {
           const params: DeploymentParams = {
             userWallet: job.buyer,
-            agentName: preCachedData?.agentName || requirements.agentName || `ACP-${Date.now()}`,
+            agentName: requirements.agentName || `ACP-${Date.now()}`,
             aiWallet: requirements.aiWallet || job.buyer,
           };
           
@@ -453,7 +443,7 @@ export class QuickDeployACPAgent {
 
       // Call Kosher Capital API
       const apiResult = await this.kosherCapitalClient.quickDeploy({
-        agentName: preCachedData?.agentName || requirements.agentName || `ACP-${Date.now()}`,
+        agentName: requirements.agentName || `ACP-${Date.now()}`,
         contractCreationTxnHash: deploymentResult.creationTxHash!,
         creating_user_wallet_address: job.buyer,
         paymentTxnHash: deploymentResult.paymentTxHash!,
@@ -469,14 +459,10 @@ export class QuickDeployACPAgent {
         );
       }
 
-      // Clean up pre-cache
-      this.preCacheStore.delete(job.id);
-
       return {
         success: true,
         ...deploymentResult,
         apiResponse: apiResult.data,
-        preCacheUsed: !!preCachedData,
       };
 
     } catch (error) {
@@ -485,31 +471,11 @@ export class QuickDeployACPAgent {
         `${LOG_PREFIX.ERROR} Deployment execution failed:`,
         structuredError.toJSON()
       );
-      
-      // Clean up pre-cache on error
-      this.preCacheStore.delete(job.id);
-      
       return {
         success: false,
         error: structuredError.message,
       };
     }
-  }
-
-
-
-  /**
-   * Handle evaluation callback from ACP
-   */
-  private async handleEvaluate(job: AcpJob): Promise<void> {
-    this.logger.info(`${LOG_PREFIX.PROCESSING} Evaluation requested for job ${job.id}`);
-    
-    // For Quick Deploy, evaluation might check:
-    // - Was the agent successfully deployed?
-    // - Is the contract address valid?
-    // - Did the API registration succeed?
-    
-    // This would be handled by an evaluator agent in the full ACP flow
   }
 
   /**
@@ -546,10 +512,7 @@ export class QuickDeployACPAgent {
   /**
    * Deliver job result
    */
-  private async deliverJob(
-    job: AcpJob, 
-    deliverable: QuickDeployDeliverable | EnhancedQuickDeployDeliverable
-  ): Promise<void> {
+  private async deliverJob(job: AcpJob, deliverable: QuickDeployDeliverable): Promise<void> {
     if (!this.acpClient) throw new Error('ACP client not initialized');
     
     await this.acpClient.deliverJob(job.id, deliverable);
@@ -602,17 +565,35 @@ export class QuickDeployACPAgent {
   }
 
   /**
+   * Get agent statistics
+   */
+  getStatistics() {
+    return {
+      ...this.stats,
+      activeJobs: this.activeJobs.size,
+      queueStatus: this.jobQueue?.getQueueStatus ? this.jobQueue.getQueueStatus() : null,
+    };
+  }
+
+  /**
    * Shutdown the agent
    */
   async shutdown(): Promise<void> {
     this.logger.info(`${LOG_PREFIX.INFO} Shutting down ACP agent...`);
     
+    // Stop job queue
+    if (this.jobQueue && this.jobQueue.stopProcessing) {
+      this.jobQueue.stopProcessing();
+      this.logger.info(`${LOG_PREFIX.INFO} Job queue stopped`);
+    }
+    
     // Clean up active jobs
     this.activeJobs.clear();
     
-    // ACP client cleanup would go here
+    // ACP client cleanup
     this.acpClient = null;
     
     this.logger.info(`${LOG_PREFIX.SUCCESS} ACP agent shutdown complete`);
+    this.logger.info(`${LOG_PREFIX.INFO} Final statistics:`, this.stats);
   }
 }

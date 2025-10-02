@@ -2,7 +2,7 @@
  * @fileoverview Status API for Quick Deploy service
  * Provides REST endpoints for Kosher Capital to check deployment status
  * 
- * @author Athena AI Team
+ * @author Dylan Burkey
  * @license MIT
  */
 

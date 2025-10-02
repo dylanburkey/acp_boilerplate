@@ -2,7 +2,7 @@
  * @fileoverview Contract interaction utilities for Quick Deploy service.
  * Handles the actual on-chain deployment of trading agents using Kosher Capital's factory contracts.
  * 
- * @author Athena AI Team
+ * @author Dylan Burkey
  * @license MIT
  */
 

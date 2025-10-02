@@ -1,6 +1,6 @@
 /**
- * @fileoverview Event monitoring service for Butler integration
- * Monitors blockchain events to automatically capture contract creation TX hashes
+ * @fileoverview Event monitoring service for ACP integration
+ * Monitors blockchain events to automatically capture transaction hashes
  * 
  * @author Athena AI Team
  * @license MIT
@@ -12,247 +12,211 @@ import {
   CONTRACT_ADDRESSES,
   EVENTS,
   LOG_PREFIX,
-  BUTLER_CONFIG,
+  ACP_CONFIG,
 } from './constants';
+import { MonitoredEvent } from './types';
 
 /**
- * Interface for monitored events
+ * Event filter configuration
  */
-interface MonitoredEvent {
-  eventName: string;
+export interface EventFilterConfig {
   contractAddress: string;
-  fundAddress?: string;
-  owner?: string;
-  txHash: string;
-  blockNumber: number;
-  timestamp: number;
+  eventName: string;
+  filter?: any;
+  callback: (event: MonitoredEvent) => Promise<void>;
 }
 
 /**
- * Service for monitoring blockchain events related to Butler deployments
+ * Service for monitoring blockchain events
  */
-export class EventMonitorService {
+export class EventMonitor {
   /** Logger instance */
   private readonly logger = Logger;
   
   /** Provider instance */
-  private readonly provider: ethers.JsonRpcProvider;
+  private readonly provider: ethers.Provider;
   
-  /** Factory contract instance */
-  private factoryContract: ethers.Contract;
+  /** Active monitors by job ID */
+  private activeMonitors: Map<string, boolean> = new Map();
   
-  /** Event listeners */
-  private listeners: Map<string, Function> = new Map();
+  /** Event filters by job ID */
+  private eventFilters: Map<string, EventFilterConfig[]> = new Map();
   
-  /** Payment to deployment mapping */
-  private paymentToDeployment: Map<string, MonitoredEvent> = new Map();
+  /** Monitored events by job ID */
+  private monitoredEvents: Map<string, MonitoredEvent[]> = new Map();
+  
+  /** Contract instances */
+  private contracts: Map<string, ethers.Contract> = new Map();
 
-  constructor(provider: ethers.JsonRpcProvider) {
+  constructor(provider: ethers.Provider) {
     this.provider = provider;
-    
-    // Initialize factory contract for event monitoring
-    const factoryAbi = [
-      'event PersonalFundCreated(address indexed fundAddress, address indexed owner, bool isTokenFund)',
-    ];
-    
-    this.factoryContract = new ethers.Contract(
-      CONTRACT_ADDRESSES.FACTORY,
-      factoryAbi,
-      this.provider
-    );
-    
-    this.logger.info(`${LOG_PREFIX.INIT} EventMonitorService initialized`);
+    this.logger.info(`${LOG_PREFIX.INIT} EventMonitor initialized`);
   }
 
   /**
-   * Starts monitoring for PersonalFundCreated events
+   * Add event filter for monitoring
    */
-  async startMonitoring(): Promise<void> {
-    this.logger.info(`${LOG_PREFIX.PROCESSING} Starting event monitoring...`);
+  addEventFilter(config: EventFilterConfig): void {
+    // For now, we'll use a default job ID if not monitoring specific jobs
+    const jobId = 'default';
     
-    // Listen for PersonalFundCreated events
-    const filter = this.factoryContract.filters.PersonalFundCreated();
+    if (!this.eventFilters.has(jobId)) {
+      this.eventFilters.set(jobId, []);
+    }
     
-    const listener = async (fundAddress: string, owner: string, isTokenFund: boolean, event: any) => {
-      const txHash = event.log.transactionHash;
-      const blockNumber = event.log.blockNumber;
+    this.eventFilters.get(jobId)!.push(config);
+    
+    this.logger.debug(`${LOG_PREFIX.INFO} Event filter added`, {
+      contractAddress: config.contractAddress,
+      eventName: config.eventName,
+    });
+  }
+
+  /**
+   * Start monitoring for a specific job
+   */
+  startMonitoring(jobId: string): void {
+    if (this.activeMonitors.has(jobId)) {
+      this.logger.warn(`${LOG_PREFIX.WARNING} Monitoring already active for job ${jobId}`);
+      return;
+    }
+    
+    this.activeMonitors.set(jobId, true);
+    this.monitoredEvents.set(jobId, []);
+    
+    // Set up event listeners for this job
+    const filters = this.eventFilters.get('default') || [];
+    
+    for (const filterConfig of filters) {
+      this.setupEventListener(jobId, filterConfig);
+    }
+    
+    this.logger.info(`${LOG_PREFIX.SUCCESS} Started monitoring for job ${jobId}`);
+  }
+
+  /**
+   * Stop monitoring for a specific job
+   */
+  stopMonitoring(jobId: string): void {
+    if (!this.activeMonitors.has(jobId)) {
+      return;
+    }
+    
+    this.activeMonitors.delete(jobId);
+    
+    // Clean up event filters specific to this job
+    this.eventFilters.delete(jobId);
+    
+    this.logger.info(`${LOG_PREFIX.SUCCESS} Stopped monitoring for job ${jobId}`);
+  }
+
+  /**
+   * Get monitored events for a job
+   */
+  getMonitoredEvents(jobId: string): MonitoredEvent[] {
+    return this.monitoredEvents.get(jobId) || [];
+  }
+
+  /**
+   * Set up event listener for a specific filter
+   */
+  private setupEventListener(jobId: string, filterConfig: EventFilterConfig): void {
+    try {
+      // Get or create contract instance
+      const contract = this.getOrCreateContract(
+        filterConfig.contractAddress,
+        filterConfig.eventName
+      );
       
-      this.logger.info(`${LOG_PREFIX.BUTLER} PersonalFundCreated event detected:`, {
-        fundAddress,
-        owner,
-        isTokenFund,
-        txHash,
-        blockNumber,
-      });
+      // Create event filter
+      const eventFilter = contract.filters[filterConfig.eventName](
+        ...(filterConfig.filter ? Object.values(filterConfig.filter) : [])
+      );
       
-      // Store event data
-      const monitoredEvent: MonitoredEvent = {
-        eventName: EVENTS.PERSONAL_FUND_CREATED,
-        contractAddress: CONTRACT_ADDRESSES.FACTORY,
-        fundAddress,
-        owner,
-        txHash,
-        blockNumber,
-        timestamp: Date.now(),
+      // Set up listener
+      const listener = async (...args: any[]) => {
+        // The last argument is the event object
+        const event = args[args.length - 1];
+        
+        const monitoredEvent: MonitoredEvent = {
+          eventName: filterConfig.eventName,
+          transactionHash: event.log.transactionHash,
+          blockNumber: event.log.blockNumber,
+          args: args.slice(0, -1), // All args except the event object
+          timestamp: Date.now(),
+        };
+        
+        // Store event
+        if (!this.monitoredEvents.has(jobId)) {
+          this.monitoredEvents.set(jobId, []);
+        }
+        this.monitoredEvents.get(jobId)!.push(monitoredEvent);
+        
+        // Call callback
+        await filterConfig.callback(monitoredEvent);
+        
+        this.logger.info(`${LOG_PREFIX.INFO} Event captured`, {
+          jobId,
+          eventName: filterConfig.eventName,
+          txHash: monitoredEvent.transactionHash,
+        });
       };
       
-      // Check if we have a payment TX waiting for this deployment
-      await this.checkPaymentMatching(monitoredEvent);
-      
-      // Emit custom event for other services
-      this.emitDeploymentEvent(monitoredEvent);
-    };
-    
-    this.factoryContract.on(filter, listener);
-    this.listeners.set('PersonalFundCreated', listener);
-    
-    this.logger.info(`${LOG_PREFIX.SUCCESS} Event monitoring started`);
-  }
-
-  /**
-   * Monitors a Butler payment transaction
-   * Links payment TX to subsequent deployment
-   */
-  async monitorButlerPayment(paymentTxHash: string, userWallet: string): Promise<void> {
-    this.logger.info(`${LOG_PREFIX.BUTLER} Monitoring Butler payment: ${paymentTxHash}`);
-    
-    try {
-      // Get payment transaction details
-      const receipt = await this.provider.getTransactionReceipt(paymentTxHash);
-      
-      if (!receipt) {
-        this.logger.warn(`${LOG_PREFIX.WARNING} Payment transaction not found`);
-        return;
-      }
-      
-      // Verify it's a USDC transfer to the payment recipient
-      const isValidPayment = await this.verifyButlerPayment(receipt);
-      
-      if (!isValidPayment) {
-        this.logger.warn(`${LOG_PREFIX.WARNING} Invalid Butler payment`);
-        return;
-      }
-      
-      // Store payment info for matching with deployment
-      this.paymentToDeployment.set(userWallet, {
-        eventName: 'ButlerPayment',
-        contractAddress: CONTRACT_ADDRESSES.USDC,
-        txHash: paymentTxHash,
-        blockNumber: receipt.blockNumber,
-        timestamp: Date.now(),
-      });
-      
-      this.logger.info(`${LOG_PREFIX.SUCCESS} Butler payment registered for ${userWallet}`);
-      
-      // Set timeout to clean up if no deployment follows
-      setTimeout(() => {
-        if (this.paymentToDeployment.has(userWallet)) {
-          this.logger.warn(`${LOG_PREFIX.WARNING} No deployment followed Butler payment for ${userWallet}`);
-          this.paymentToDeployment.delete(userWallet);
-        }
-      }, 5 * 60 * 1000); // 5 minutes
+      contract.on(eventFilter, listener);
       
     } catch (error) {
-      this.logger.error(`${LOG_PREFIX.ERROR} Failed to monitor Butler payment:`, error);
+      this.logger.error(`${LOG_PREFIX.ERROR} Failed to setup event listener`, error);
     }
   }
 
   /**
-   * Verifies Butler payment transaction
+   * Get or create contract instance
    */
-  private async verifyButlerPayment(receipt: ethers.TransactionReceipt): Promise<boolean> {
-    // Check if it's to USDC contract
-    if (receipt.to?.toLowerCase() !== CONTRACT_ADDRESSES.USDC.toLowerCase()) {
-      return false;
-    }
+  private getOrCreateContract(address: string, eventName: string): ethers.Contract {
+    const key = `${address}-${eventName}`;
     
-    // Check for Transfer event to payment recipient
-    const transferTopic = ethers.id(`${EVENTS.TRANSFER}(address,address,uint256)`);
-    
-    for (const log of receipt.logs) {
-      if (log.address.toLowerCase() === CONTRACT_ADDRESSES.USDC.toLowerCase() &&
-          log.topics[0] === transferTopic) {
-        const to = ethers.getAddress('0x' + log.topics[2].slice(26));
-        if (to.toLowerCase() === BUTLER_CONFIG.PAYMENT_RECIPIENT.toLowerCase()) {
-          const amount = ethers.toBigInt(log.data);
-          const expectedAmount = ethers.parseUnits(
-            BUTLER_CONFIG.PAYMENT_AMOUNT_USDC.toString(), 
-            6
-          );
-          
-          if (amount >= expectedAmount) {
-            return true;
-          }
-        }
+    if (!this.contracts.has(key)) {
+      // Define minimal ABI for the event
+      let abi: string[] = [];
+      
+      if (eventName === EVENTS.PERSONAL_FUND_CREATED) {
+        abi = ['event PersonalFundCreated(address indexed fundAddress, address indexed owner, bool isTokenFund)'];
+      } else if (eventName === EVENTS.TRANSFER) {
+        abi = ['event Transfer(address indexed from, address indexed to, uint256 value)'];
+      } else if (eventName === EVENTS.TRADING_STATUS_CHANGED) {
+        abi = ['event TradingStatusChanged(bool enabled)'];
       }
+      
+      const contract = new ethers.Contract(address, abi, this.provider);
+      this.contracts.set(key, contract);
     }
     
-    return false;
+    return this.contracts.get(key)!;
   }
 
   /**
-   * Checks if a deployment matches a waiting Butler payment
+   * Find recent contract creation by user
    */
-  private async checkPaymentMatching(deploymentEvent: MonitoredEvent): Promise<void> {
-    const userWallet = deploymentEvent.owner;
-    
-    if (!userWallet) return;
-    
-    const paymentEvent = this.paymentToDeployment.get(userWallet);
-    
-    if (paymentEvent) {
-      this.logger.info(`${LOG_PREFIX.SUCCESS} Matched Butler payment to deployment:`, {
-        paymentTx: paymentEvent.txHash,
-        deploymentTx: deploymentEvent.txHash,
-        userWallet,
-      });
-      
-      // Emit matched event
-      this.emitMatchedEvent({
-        paymentTxHash: paymentEvent.txHash,
-        contractCreationTxHash: deploymentEvent.txHash,
-        fundAddress: deploymentEvent.fundAddress!,
-        userWallet,
-      });
-      
-      // Clean up
-      this.paymentToDeployment.delete(userWallet);
-    }
-  }
-
-  /**
-   * Emits deployment event for other services
-   */
-  private emitDeploymentEvent(event: MonitoredEvent): void {
-    process.emit('deployment:created', event);
-  }
-
-  /**
-   * Emits matched payment-deployment event
-   */
-  private emitMatchedEvent(data: any): void {
-    process.emit('butler:matched', data);
-  }
-
-  /**
-   * Gets contract creation TX by user wallet
-   * Used when Butler provides payment TX
-   */
-  async findContractCreationByUser(
-    userWallet: string, 
+  async findRecentContractCreation(
+    userWallet: string,
     fromBlock?: number
   ): Promise<string | null> {
     try {
       const currentBlock = await this.provider.getBlockNumber();
-      const startBlock = fromBlock || currentBlock - 1000; // Look back 1000 blocks
+      const startBlock = fromBlock || currentBlock - 100; // Look back 100 blocks
       
-      const filter = this.factoryContract.filters.PersonalFundCreated(
+      const contract = this.getOrCreateContract(
+        CONTRACT_ADDRESSES.FACTORY,
+        EVENTS.PERSONAL_FUND_CREATED
+      );
+      
+      const filter = contract.filters.PersonalFundCreated(
         null, // any fund address
         userWallet, // specific owner
         null // any fund type
       );
       
-      const events = await this.factoryContract.queryFilter(
+      const events = await contract.queryFilter(
         filter,
         startBlock,
         currentBlock
@@ -273,46 +237,34 @@ export class EventMonitorService {
   }
 
   /**
-   * Stops event monitoring
+   * Clean up all listeners
    */
-  async stopMonitoring(): Promise<void> {
-    this.logger.info(`${LOG_PREFIX.INFO} Stopping event monitoring...`);
-    
-    // Remove all listeners
-    for (const [eventName, listener] of this.listeners) {
-      this.factoryContract.off(eventName, listener);
+  cleanup(): void {
+    // Remove all contract listeners
+    for (const contract of this.contracts.values()) {
+      contract.removeAllListeners();
     }
     
-    this.listeners.clear();
-    this.paymentToDeployment.clear();
+    this.contracts.clear();
+    this.activeMonitors.clear();
+    this.eventFilters.clear();
+    this.monitoredEvents.clear();
     
-    this.logger.info(`${LOG_PREFIX.SUCCESS} Event monitoring stopped`);
-  }
-
-  /**
-   * Gets current monitoring status
-   */
-  getStatus(): object {
-    return {
-      isMonitoring: this.listeners.size > 0,
-      activeListeners: Array.from(this.listeners.keys()),
-      pendingPayments: this.paymentToDeployment.size,
-      pendingUsers: Array.from(this.paymentToDeployment.keys()),
-    };
+    this.logger.info(`${LOG_PREFIX.SUCCESS} EventMonitor cleaned up`);
   }
 }
 
 // Export singleton instance
-let eventMonitor: EventMonitorService | null = null;
+let eventMonitorInstance: EventMonitor | null = null;
 
-export function getEventMonitor(provider?: ethers.JsonRpcProvider): EventMonitorService {
-  if (!eventMonitor && provider) {
-    eventMonitor = new EventMonitorService(provider);
+export function getEventMonitor(provider?: ethers.Provider): EventMonitor {
+  if (!eventMonitorInstance && provider) {
+    eventMonitorInstance = new EventMonitor(provider);
   }
   
-  if (!eventMonitor) {
+  if (!eventMonitorInstance) {
     throw new Error('EventMonitor not initialized. Provide a provider on first call.');
   }
   
-  return eventMonitor;
+  return eventMonitorInstance;
 }

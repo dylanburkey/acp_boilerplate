@@ -2,13 +2,13 @@
  * @fileoverview Main entry point for Quick Deploy ACP Seller Agent
  * Registers as an ACP seller agent to offer AI trading agent deployment services
  * 
- * @author Athena AI Team
+ * @author Dylan Burkey
  * @license MIT
  */
 
 import dotenv from 'dotenv';
 import { QuickDeployACPAgent } from './services/quickDeploy/acpSellerAgent';
-import { statusApi } from './services/quickDeploy/statusApi';
+import { startStatusApi } from './services/quickDeploy/statusApi';
 import { Logger } from './utils/logger';
 
 // Load environment variables
@@ -33,8 +33,7 @@ async function main() {
     // Start status API if enabled
     if (process.env.STATUS_API_ENABLED === 'true') {
       const statusPort = parseInt(process.env.STATUS_API_PORT || '3001');
-      statusApi.listen(statusPort);
-      logger.info(`Status API listening on port ${statusPort}`);
+      await startStatusApi(statusPort);
     }
     
     logger.info('✅ Quick Deploy ACP Seller Agent is running');

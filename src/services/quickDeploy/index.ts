@@ -11,9 +11,8 @@ export { QuickDeployACPAgent } from './acpSellerAgent';
 export { QuickDeployContract } from './contractUtils';
 export { KosherCapitalNotificationService, notificationService } from './notificationService';
 export { TransactionTracker, transactionTracker } from './transactionTracker';
-export { statusApi, quickDeployRouter } from './statusApi';
+export { createStatusApi, startStatusApi } from './statusApi';
 export { EventMonitor } from './eventMonitor';
-export { TransactionMonitor, getTransactionMonitor } from './transactionMonitor';
 
 // API clients
 export { KosherCapitalClient, getKosherCapitalClient } from './kosherCapitalClient';
@@ -26,10 +25,6 @@ export * from './errors';
 
 // Utilities
 export { RetryUtil, CircuitBreaker, RateLimiter } from './retry';
-
-// Configuration
-export { getWebhookConfig, validateWebhookConfig } from './webhookConfig';
-export * from './webhookConfig';
 
 // Constants
 export * from './constants';

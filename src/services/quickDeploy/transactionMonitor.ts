@@ -50,7 +50,7 @@ export class TransactionMonitor {
   private readonly config: TransactionCaptureConfig;
   
   constructor(
-    provider: ethers.providers.Provider,
+    provider: ethers.Provider,
     config?: TransactionCaptureConfig
   ) {
     this.config = {
@@ -446,7 +446,7 @@ let monitorInstance: TransactionMonitor | null = null;
  * Get or create transaction monitor instance
  */
 export function getTransactionMonitor(
-  provider: ethers.providers.Provider,
+  provider: ethers.Provider,
   config?: TransactionCaptureConfig
 ): TransactionMonitor {
   if (!monitorInstance) {
