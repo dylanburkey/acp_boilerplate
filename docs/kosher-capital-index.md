@@ -12,6 +12,7 @@ Welcome to the Kosher Capital ACP Integration documentation. This integration en
 - **[Integration Documentation](./kosher-capital-integration.md)** - Complete integration overview
 - **[Developer Guide](./kosher-capital-developer-guide.md)** - Architecture and extension guide
 - **[Contract Reference](./kosher-capital-contract-reference.md)** - Contract addresses and gas costs
+- **[TX Hash Callback Guide](./kosher-capital-tx-hash-callback.md)** 🆕 - Automatic transaction hash capture and callbacks
 
 ## 🎯 Quick Navigation
 
