@@ -1,50 +1,51 @@
-# Quick Deploy ACP Service
+# Enhanced Quick Deploy ACP Service
 
 ## Overview
 
-The Quick Deploy service is an ACP (Agent Commerce Protocol) seller agent that provides AI trading agent deployment services through the Virtuals Protocol ecosystem. Users interact with this service through Butler (the ACP frontend UI) to deploy trading agents on the Kosher Capital platform.
+The Quick Deploy service is an ACP (Agent Commerce Protocol) seller agent that provides AI trading agent deployment services through the Virtuals Protocol ecosystem. This service has been enhanced with automatic transaction hash capture and callback functionality to optimize the deployment flow.
+
+## Key Features
+
+### 🚀 Automatic TX Hash Capture
+- Monitors blockchain events in real-time
+- Automatically captures transaction hashes as they're created
+- No manual intervention required
+
+### 📡 Webhook Callbacks
+- Automatically sends TX hashes to Kosher Capital
+- Configurable retry logic with exponential backoff
+- Circuit breaker protection for resilience
+
+### ⚡ Pre-caching & Optimization
+- Pre-generates agent names with "ACP" prefix
+- Caches deployment data during job acceptance
+- Streamlines the deployment process
+
+### 📊 Enhanced Status Feedback
+- Real-time deployment status updates
+- Comprehensive event tracking
+- Detailed error reporting
 
 ## Architecture
 
-This service implements the ACP seller agent pattern:
-- **Butler** = Frontend UI where users interact
-- **ACP** = The protocol that handles agent commerce
-- **Our Service** = A seller agent offering quick deployment services
-- **Payment** = Handled by ACP's escrow system
-
-## Key Components
-
-### Core Services
-
-- **`acpSellerAgent.ts`** - Main ACP seller agent implementation
-- **`contractUtils.ts`** - Blockchain contract interactions
-- **`kosherCapitalClient.ts`** - Kosher Capital API client
-- **`notificationService.ts`** - Webhook notification service
-- **`transactionTracker.ts`** - Transaction state management
-- **`eventMonitor.ts`** - Blockchain event monitoring
-- **`statusApi.ts`** - REST API for status queries
-
-### Supporting Modules
-
-- **`types.ts`** - TypeScript type definitions
-- **`errors.ts`** - Custom error classes and handling
-- **`retry.ts`** - Retry logic and resilience patterns
-- **`constants.ts`** - Configuration values and constants
-
-## How It Works
-
-1. **User requests deployment through Butler UI**
-2. **ACP creates a job and routes it to our seller agent**
-3. **Our agent processes the job through phases:**
-   - REQUEST: Validate and accept the job
-   - NEGOTIATION: Agree on terms (50 USDC fixed price)
-   - TRANSACTION: Execute deployment and deliver results
-4. **Deployment involves:**
-   - Creating personal fund contract
-   - Processing payment
-   - Enabling trading
-   - Registering with Kosher Capital API
-5. **Results delivered back through ACP to Butler**
+```mermaid
+graph TB
+    subgraph "ACP Flow"
+        User[User] -->|Request via Butler| ACP[ACP Protocol]
+        ACP -->|Job Request| Agent[Quick Deploy Agent]
+    end
+    
+    subgraph "Enhanced Deployment"
+        Agent -->|1. Pre-cache Data| Cache[Pre-cache Store]
+        Agent -->|2. Deploy Contract| BC[Blockchain]
+        BC -->|Events| Monitor[TX Monitor]
+        Monitor -->|3. Capture TX Hash| Monitor
+        Monitor -->|4. Send Callback| Webhook[Kosher Capital]
+        Agent -->|5. Complete Job| ACP
+    end
+    
+    style Monitor fill:#f9f,stroke:#333,stroke-width:4px
+```
 
 ## Configuration
 
@@ -57,81 +58,188 @@ WHITELISTED_WALLET_PRIVATE_KEY=your-private-key
 WHITELISTED_WALLET_ENTITY_ID=your-entity-id
 SELLER_AGENT_WALLET_ADDRESS=0x...
 
+# Webhook Configuration (for automatic callbacks)
+KOSHER_CAPITAL_WEBHOOK_URL=https://api.koshercapital.com/webhooks/deployment
+WEBHOOK_SECRET=your-webhook-secret
+
 # Optional
 ACP_RPC_URL=custom-rpc-url
 SERVICE_PRICE=50
+STATUS_WEBHOOK_URL=https://api.koshercapital.com/webhooks/status
+WEBHOOK_RETRY_ATTEMPTS=3
+WEBHOOK_RETRY_DELAY_MS=1000
 ```
 
-### Contract Addresses (Base Network)
+### Webhook Configuration
 
-- Factory: `0x0fE1eBa3e809CD0Fc34b6a3666754B7A042c169a`
-- USDC: `0x833589fcd6edb6e08f4c7c32d4f71b54bda02913`
-- Payment Recipient: `0x48597AfA1c4e7530CA8889bA9291494757FEABD2`
+The service supports automatic webhook callbacks to send transaction hashes:
+
+```typescript
+// webhookConfig.ts
+export const WEBHOOK_CONFIG = {
+  url: process.env.KOSHER_CAPITAL_WEBHOOK_URL,
+  headers: {
+    'Content-Type': 'application/json',
+    'x-api-key': process.env.SHEKEL_API_KEY,
+    'x-webhook-secret': process.env.WEBHOOK_SECRET,
+  },
+  retryAttempts: 3,
+  retryDelayMs: 1000,
+};
+```
+
+## How It Works
+
+### 1. Job Acceptance & Pre-caching
+When a job is accepted, the service:
+- Pre-generates an agent name with "ACP" prefix
+- Caches deployment parameters
+- Estimates gas requirements
+- Gets current nonce for optimization
+
+### 2. Automated Deployment
+During deployment:
+- Transaction monitor watches for blockchain events
+- Captures transaction hashes as they occur
+- No need to wait for manual TX hash input
+
+### 3. Automatic Callbacks
+After transactions are confirmed:
+- TX hashes are automatically sent to Kosher Capital
+- Retry logic ensures delivery
+- Circuit breaker prevents cascade failures
+
+### 4. Enhanced Status Updates
+Throughout the process:
+- Real-time status updates via webhooks
+- Detailed event tracking
+- Comprehensive error reporting
+
+## Webhook Payload Examples
+
+### Deployment Callback
+```json
+{
+  "jobId": "job-123",
+  "userWallet": "0x...",
+  "fundAddress": "0x...",
+  "creationTxHash": "0x...",
+  "paymentTxHash": "0x...",
+  "enableTradingTxHash": "0x...",
+  "timestamp": "2025-10-01T12:00:00Z"
+}
+```
+
+### Status Update
+```json
+{
+  "jobId": "job-123",
+  "status": "processing",
+  "phase": "contract_deployment",
+  "progress": 66,
+  "message": "Contract deployed, processing payment...",
+  "timestamp": "2025-10-01T12:00:00Z"
+}
+```
 
 ## Usage
 
-### Initialize the ACP Agent
+### Basic Deployment (with automatic TX capture)
 
 ```typescript
-import { QuickDeployACPAgent } from './quickDeploy';
-
 const agent = new QuickDeployACPAgent();
 await agent.initialize();
 
-// Agent is now ready to receive jobs from ACP
+// Jobs are automatically enhanced with TX monitoring
+// No additional configuration needed
 ```
 
-### Direct API Usage (for testing)
+### Custom Webhook Configuration
 
 ```typescript
-import { getKosherCapitalClient } from './quickDeploy';
+import { getTransactionMonitor } from './quickDeploy';
 
-const client = getKosherCapitalClient();
-const result = await client.quickDeploy({
-  agentName: 'ACP-Agent-123',
-  contractCreationTxnHash: '0x...',
-  creating_user_wallet_address: '0x...',
-  paymentTxnHash: '0x...',
-  deploySource: 'ACP',
+const monitor = getTransactionMonitor(provider, {
+  autoCapture: true,
+  webhookUrl: 'https://your-webhook-url.com',
+  callbackDelay: 3000, // 3 seconds
+  maxRetries: 5,
 });
 ```
 
-## Testing
+### Disable Automatic Capture
 
+If needed, automatic TX capture can be disabled per job:
+
+```typescript
+// In job metadata
+{
+  type: 'quick-deploy',
+  metadata: {
+    autoCaptureTxHash: false // Disable for this job
+  }
+}
+```
+
+## Benefits of Enhanced Flow
+
+1. **No Manual Steps**: TX hashes are captured and sent automatically
+2. **Faster Deployments**: Pre-caching reduces deployment time
+3. **Better Reliability**: Retry logic and circuit breakers ensure resilience
+4. **Real-time Updates**: Webhook callbacks provide instant status updates
+5. **Simplified Integration**: No need to modify existing contract code
+
+## Monitoring & Debugging
+
+### Check Deployment Status
 ```bash
-# Run unit tests
-npm test -- src/services/quickDeploy/__tests__
+curl -X GET http://localhost:3001/api/deployments/{jobId}/status
+```
 
-# Test with ACP sandbox
-# 1. Register your agent at https://app.virtuals.io/acp/join
-# 2. Set up test agents (buyer and seller)
-# 3. Run your seller agent
-# 4. Initiate test jobs from buyer agent
+### View Transaction Monitor Stats
+```bash
+curl -X GET http://localhost:3001/api/monitor/stats
+```
+
+### Enable Debug Logging
+```bash
+LOG_LEVEL=debug npm run quickdeploy
 ```
 
 ## Error Handling
 
-The service uses structured error handling with custom error classes:
-- `ValidationError` - Input validation failures
-- `ProcessingError` - Job processing issues
-- `ServiceError` - External service failures
-- `ContractError` - Blockchain operation failures
-- `APIError` - API call failures
+The enhanced service includes:
+- Automatic retry for failed webhooks
+- Circuit breaker to prevent cascade failures
+- Detailed error reporting
+- Graceful fallback to standard deployment
 
-All errors are properly typed and include relevant context for debugging.
+## Testing
 
-## Deployment Checklist
+### Test Webhook Integration
+```bash
+# Set test webhook URL
+export KOSHER_CAPITAL_WEBHOOK_URL=https://webhook.site/your-test-url
 
-1. ✅ Set up environment variables
-2. ✅ Register agent on ACP platform
-3. ✅ Whitelist developer wallet
-4. ✅ Fund wallet with ETH for gas
-5. ✅ Test in sandbox environment
-6. ✅ Graduate to production when ready
+# Run in test mode
+npm run quickdeploy:test
+```
+
+### Simulate Deployment
+```bash
+npm run test:deployment -- --jobId test-123
+```
 
 ## Support
 
-For issues or questions:
-- Check the [troubleshooting guide](../../docs/troubleshooting.md)
-- Review [ACP documentation](https://whitepaper.virtuals.io/info-hub/agent-commerce-protocol-acp-guide)
-- Contact the Kosher Capital team
+For issues with:
+- **Webhook Configuration**: Check webhook URL and authentication
+- **TX Hash Capture**: Verify blockchain events are being monitored
+- **Pre-caching**: Ensure sufficient memory and valid parameters
+- **Callbacks**: Check network connectivity and retry logs
+
+---
+
+**Version**: 2.0.0 (Enhanced with automatic TX capture)  
+**Last Updated**: October 2025  
+**Maintainer**: Athena AI Team

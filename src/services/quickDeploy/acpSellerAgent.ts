@@ -15,14 +15,17 @@ import { QuickDeployContract } from './contractUtils';
 import { notificationService } from './notificationService';
 import { transactionTracker } from './transactionTracker';
 import { getKosherCapitalClient } from './kosherCapitalClient';
+import { getTransactionMonitor, TransactionMonitor } from './transactionMonitor';
 import {
   QuickDeployServiceRequirement,
   QuickDeployDeliverable,
+  EnhancedQuickDeployDeliverable,
   ServiceType,
   TransactionStatus,
   DeploymentParams,
   DeploymentResult,
   isQuickDeployRequest,
+  EnhancedDeploymentMetadata,
 } from './types';
 import {
   ValidationError,
@@ -56,8 +59,14 @@ export class QuickDeployACPAgent {
   /** Kosher Capital API client */
   private readonly kosherCapitalClient = getKosherCapitalClient();
   
+  /** Transaction monitor for automatic TX hash capture */
+  private transactionMonitor: TransactionMonitor | null = null;
+  
   /** Active jobs mapping */
   private activeJobs: Map<string, AcpJob> = new Map();
+  
+  /** Pre-cached deployment data */
+  private preCacheStore: Map<string, any> = new Map();
 
   constructor() {
     this.contractUtils = new QuickDeployContract();
@@ -86,6 +95,14 @@ export class QuickDeployACPAgent {
           `${LOG_PREFIX.WARNING} Kosher Capital API health check failed`
         );
       }
+
+      // Initialize transaction monitor
+      const provider = this.contractUtils['provider'];
+      this.transactionMonitor = getTransactionMonitor(provider, {
+        autoCapture: true,
+        callbackDelay: 2000, // 2 seconds after confirmation
+        maxRetries: 3,
+      });
 
       // Build ACP contract client
       const acpContractClient = await AcpContractClient.build(
@@ -226,6 +243,28 @@ export class QuickDeployACPAgent {
         `${LOG_PREFIX.INFO} Transaction created`,
         { transactionId: transaction.id, jobId: job.id }
       );
+      
+      // Pre-cache deployment data for faster execution
+      if (this.transactionMonitor) {
+        try {
+          const preCachedData = await this.transactionMonitor.preCacheDeploymentData(
+            job.buyer,
+            requirements.agentName
+          );
+          this.preCacheStore.set(job.id, preCachedData);
+          
+          this.logger.info(
+            `${LOG_PREFIX.INFO} Pre-cached deployment data`,
+            { jobId: job.id, agentName: preCachedData.agentName }
+          );
+        } catch (error) {
+          // Pre-caching failed, but don't reject the job
+          this.logger.warn(
+            `${LOG_PREFIX.WARNING} Failed to pre-cache deployment data`,
+            { error, jobId: job.id }
+          );
+        }
+      }
 
       // Accept the job
       await this.acceptJob(job, `Quick deployment service available for ${agentName}`);
@@ -284,8 +323,8 @@ export class QuickDeployACPAgent {
       // Execute deployment
       const deploymentResult = await this.executeDeployment(job, requirements);
 
-      // Prepare deliverable
-      const deliverable: QuickDeployDeliverable = {
+      // Prepare enhanced deliverable
+      const enhancedDeliverable: EnhancedQuickDeployDeliverable = {
         success: deploymentResult.success,
         agentName,
         contractAddress: deploymentResult.fundAddress,
@@ -294,10 +333,12 @@ export class QuickDeployACPAgent {
         apiResponse: deploymentResult.apiResponse,
         error: deploymentResult.error,
         timestamp: new Date().toISOString(),
+        callbackSent: deploymentResult.callbackSent,
+        preCacheUsed: deploymentResult.preCacheUsed,
       };
 
       // Deliver the result
-      await this.deliverJob(job, deliverable);
+      await this.deliverJob(job, enhancedDeliverable);
 
       // Update transaction as completed
       if (transaction) {
@@ -342,7 +383,7 @@ export class QuickDeployACPAgent {
   }
 
   /**
-   * Execute the actual deployment
+   * Execute the actual deployment with enhanced monitoring
    */
   private async executeDeployment(
     job: AcpJob, 
@@ -351,18 +392,49 @@ export class QuickDeployACPAgent {
     try {
       this.logger.info(`${LOG_PREFIX.PROCESSING} Executing deployment for ${requirements.agentName}`);
 
-      // Create wallet signer
+      // Check for pre-cached data
+      const preCachedData = this.preCacheStore.get(job.id);
+      const enhancedMetadata = requirements.metadata as EnhancedDeploymentMetadata;
+      
+      // Use transaction monitor for automatic TX hash capture
+      if (this.transactionMonitor && enhancedMetadata?.autoCaptureTxHash !== false) {
+        const deploymentResult = await this.transactionMonitor.monitorDeployment(
+          {
+            userWallet: job.buyer,
+            agentName: preCachedData?.agentName || requirements.agentName || `ACP-${Date.now()}`,
+            aiWallet: requirements.aiWallet || job.buyer,
+            referralCode: requirements.metadata?.referralCode,
+          },
+          job.id
+        );
+
+        // The transaction monitor has already sent the TX hashes if configured
+        this.logger.info(
+          `${LOG_PREFIX.SUCCESS} Deployment completed with automatic TX hash capture`,
+          { jobId: job.id, callbackSent: deploymentResult.callbackSent }
+        );
+
+        // Clean up pre-cache
+        this.preCacheStore.delete(job.id);
+
+        return {
+          success: true,
+          ...deploymentResult,
+          preCacheUsed: !!preCachedData,
+        };
+      }
+      
+      // Fallback to standard deployment if monitor not available
       const wallet = new ethers.Wallet(
         config.whitelistedWalletPrivateKey,
         this.contractUtils['provider']
       );
 
-      // Execute deployment with retry logic
       const deploymentResult = await RetryUtil.withRetry(
         async () => {
           const params: DeploymentParams = {
             userWallet: job.buyer,
-            agentName: requirements.agentName || `ACP-${Date.now()}`,
+            agentName: preCachedData?.agentName || requirements.agentName || `ACP-${Date.now()}`,
             aiWallet: requirements.aiWallet || job.buyer,
           };
           
@@ -381,7 +453,7 @@ export class QuickDeployACPAgent {
 
       // Call Kosher Capital API
       const apiResult = await this.kosherCapitalClient.quickDeploy({
-        agentName: requirements.agentName || `ACP-${Date.now()}`,
+        agentName: preCachedData?.agentName || requirements.agentName || `ACP-${Date.now()}`,
         contractCreationTxnHash: deploymentResult.creationTxHash!,
         creating_user_wallet_address: job.buyer,
         paymentTxnHash: deploymentResult.paymentTxHash!,
@@ -397,10 +469,14 @@ export class QuickDeployACPAgent {
         );
       }
 
+      // Clean up pre-cache
+      this.preCacheStore.delete(job.id);
+
       return {
         success: true,
         ...deploymentResult,
         apiResponse: apiResult.data,
+        preCacheUsed: !!preCachedData,
       };
 
     } catch (error) {
@@ -409,6 +485,10 @@ export class QuickDeployACPAgent {
         `${LOG_PREFIX.ERROR} Deployment execution failed:`,
         structuredError.toJSON()
       );
+      
+      // Clean up pre-cache on error
+      this.preCacheStore.delete(job.id);
+      
       return {
         success: false,
         error: structuredError.message,
@@ -466,7 +546,10 @@ export class QuickDeployACPAgent {
   /**
    * Deliver job result
    */
-  private async deliverJob(job: AcpJob, deliverable: QuickDeployDeliverable): Promise<void> {
+  private async deliverJob(
+    job: AcpJob, 
+    deliverable: QuickDeployDeliverable | EnhancedQuickDeployDeliverable
+  ): Promise<void> {
     if (!this.acpClient) throw new Error('ACP client not initialized');
     
     await this.acpClient.deliverJob(job.id, deliverable);
