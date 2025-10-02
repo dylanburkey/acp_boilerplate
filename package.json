@@ -18,6 +18,8 @@
     "test:butler:scenarios": "tsx test-utils/testButlerIntegration.ts --scenarios",
     "test:mock-kc": "tsx test-utils/mockKosherCapital.ts",
     "test:integration": "npm-run-all -p test:mock-kc quickdeploy:mock",
+    "test:acp-flow": "tsx tests/simulate-acp-flow.ts",
+    "test:acp-flow:verbose": "LOG_LEVEL=debug tsx tests/simulate-acp-flow.ts",
     "lint": "eslint . --ext .ts",
     "typecheck": "tsc --noEmit",
     "setup": "pnpm install && cp .env.example .env",
