@@ -1,73 +1,73 @@
 # Kosher Capital Quick Deploy - Final Implementation Summary
 
-## ✅ Complete Migration to GameAgent + ACP Plugin Pattern
+## ✅ Direct Virtuals ACP Integration
 
-The Kosher Capital Quick Deploy codebase has been **fully migrated** to use the standard GameAgent + ACP Plugin architecture, following Virtuals Protocol best practices and the Athena agent pattern.
+The Kosher Capital Quick Deploy codebase uses **direct Virtuals ACP Client integration** for blockchain-based AI agent deployment services.
+
+**Architecture:** Direct AcpClient (NOT using GameAgent SDK)
 
 ---
 
-## 🎯 What Was Accomplished
+## 🎯 What This Codebase Provides
 
-### 1. GameAgent Architecture Implementation
+### 1. Direct ACP Client Integration
 
-**New Files Created:**
-- `src/quickDeployAgent.ts` - Main GameAgent entry point
-- `src/functions/quickDeploy.ts` - Quick Deploy GameFunction
-- `src/functions/index.ts` - Function exports
+**Core Implementation:**
+- `src/quickDeploy.ts` - Main ACP seller agent entry point
+- `src/services/quickDeploy/acpSellerAgent.ts` - QuickDeployACPAgent class
+- `src/services/quickDeploy/quickDeployService.ts` - Quick Deploy business logic
 - `src/utils/queueFactory.ts` - Server-agnostic job queue factory
 
 **Architecture:**
 ```
-GameAgent
-  └── ACP Plugin
-      └── ACP Client
-          └── Blockchain (Base Network)
-
-  └── Worker
-      └── Functions
-          ├── respondJob (from plugin)
-          ├── deliverJob (from plugin)
-          └── quickDeployAgent (custom)
+ACP Client (Direct)
+  └── Blockchain (Base Network)
+  └── Job Queue (In-Memory)
+  └── Quick Deploy Service
+      └── Kosher Capital API
 ```
 
 ### 2. Server-Agnostic Deployment
 
-**Removed:**
-- ❌ All Cloudflare Durable Objects dependencies
-- ❌ Serverless-specific code
-- ❌ Cloud-specific environment variables
+**Works on ANY Node.js server:**
+- ✅ Traditional VPS (DigitalOcean, Linode, Vultr)
+- ✅ Cloud Compute (AWS EC2, Google Compute, Azure VMs)
+- ✅ Containers (Docker, Kubernetes)
+- ✅ PaaS (Heroku, Railway, Render, Fly.io)
+- ✅ Self-hosted servers
 
-**Result:**
-- ✅ Runs on ANY Node.js server (VPS, Docker, Kubernetes, PaaS, self-hosted)
-- ✅ In-memory job queue (simple, no external dependencies)
-- ✅ Production-ready for single-instance deployment
+**No cloud-specific dependencies:**
+- ❌ No Cloudflare Durable Objects
+- ❌ No serverless-specific code
+- ❌ No vendor lock-in
 
-### 3. E2E Testing Update
+**Implementation:**
+- In-memory job queue (simple, fast, reliable)
+- Direct blockchain interaction via ethers.js
+- RESTful API integration with Kosher Capital
 
-**New Test Suite:**
-- `tests/e2e/gameagent-acp.e2e.test.ts` - 22 tests covering GameAgent integration
+### 3. ACP Job Lifecycle
 
-**Legacy Tests (Disabled):**
-- `tests/e2e/legacy-acp-flow.e2e.test.ts.disabled`
-- `tests/e2e/legacy-quick-deploy.e2e.test.ts.disabled`
-
-**Coverage:**
-- ACP Client/Plugin initialization
-- GameAgent creation and setup
-- Function registration
-- State management
-- Blockchain connectivity
-- Configuration validation
-
-### 4. Documentation Suite
-
-**Created:**
-- `docs/acp/ACP_ARCHITECTURE_COMPARISON.md` - Detailed architecture comparison
-- `docs/acp/KOSHER_CAPITAL_ACP_INTEGRATION_PLAN.md` - Integration plan
-- `docs/acp/GAMEAGENT_MIGRATION_COMPLETE.md` - Migration summary
-- `docs/DEPLOYMENT.md` - Comprehensive deployment guide
-- `docs/SERVER_AGNOSTIC_CONFIRMATION.md` - Server-agnostic verification
-- `tests/e2e/README.md` - Updated E2E testing guide
+**Job Processing Flow:**
+```
+1. Buyer submits deployment request via ACP marketplace
+   ↓
+2. ACP Client onNewTask → Job added to priority queue
+   ↓
+3. REQUEST phase - Validate deployment request
+   - Check agent name, wallet addresses
+   - Accept or reject via ACP Client
+   ↓
+4. TRANSACTION phase - Execute deployment
+   - Monitor for 50 USDC payment on Base chain
+   - Deploy agent contract via Factory
+   - Register with Kosher Capital API
+   - Deliver results via ACP Client
+   ↓
+5. EVALUATION phase - Auto-approve deliverable
+   ↓
+6. Buyer receives deployment details
+```
 
 ---
 
@@ -94,11 +94,11 @@ pnpm start
 ### Key Commands
 
 ```bash
-pnpm dev              # Run GameAgent in development
-pnpm dev:legacy       # Run old direct ACP version (for comparison)
+pnpm dev              # Run Quick Deploy agent in development
+pnpm dev:mock         # Run with mock buyer for testing
 pnpm build            # Build TypeScript to JavaScript
 pnpm start            # Run built production version
-pnpm test:e2e         # Run E2E tests (GameAgent only)
+pnpm test:e2e         # Run E2E tests
 pnpm typecheck        # Verify TypeScript types
 ```
 
@@ -109,10 +109,7 @@ pnpm typecheck        # Verify TypeScript types
 ### Required Environment Variables
 
 ```bash
-# GameAgent Configuration
-GAME_API_KEY=your_game_api_key_from_virtuals_console
-
-# Wallet Configuration
+# Wallet Configuration (Direct ACP Client)
 WHITELISTED_WALLET_PRIVATE_KEY=0x...
 WHITELISTED_WALLET_ENTITY_ID=1
 SELLER_AGENT_WALLET_ADDRESS=0x...
@@ -128,9 +125,13 @@ KOSHER_CAPITAL_API_URL=https://app.kosher.capital/api
 
 # Blockchain (Base Network)
 ACP_RPC_URL=https://mainnet.base.org
+ACP_CHAIN_ID=8453
+ACP_CONTRACT_ADDRESS=0xC6e864B52203da6593C83fD18E4c1212D088F61F
 USDC_CONTRACT_ADDRESS=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
-FACTORY_CONTRACT_ADDRESS=your_factory_address
+FACTORY_CONTRACT_ADDRESS=your_factory_contract_address
 ```
+
+**Note:** No GAME_API_KEY needed - this codebase uses **direct ACP Client only**.
 
 See `.env.example` for complete configuration.
 
@@ -138,37 +139,46 @@ See `.env.example` for complete configuration.
 
 ## 🏗️ Architecture Overview
 
-### Job Processing Flow
+### Direct ACP Client Pattern
 
+This codebase uses the **direct AcpClient** from `@virtuals-protocol/acp-node`:
+
+```typescript
+// src/quickDeploy.ts
+import AcpClient, { AcpContractClient, AcpJob } from '@virtuals-protocol/acp-node';
+
+const acpClient = new AcpClient({
+  acpContractClient: await AcpContractClient.build(
+    privateKey,
+    entityId,
+    walletAddress,
+    { rpcUrl }
+  ),
+  onNewTask: (job: AcpJob) => {
+    // Add job to processing queue
+    jobQueue.enqueue(job, priority);
+  },
+  onEvaluate: (job: AcpJob) => {
+    // Auto-approve successful deployments
+    job.evaluate(true, 'Deployment completed');
+  }
+});
 ```
-1. Buyer submits deployment request via ACP marketplace
-   ↓
-2. onNewTask callback → Job added to priority queue
-   ↓
-3. AI Worker processes job → REQUEST phase
-   - Analyzes deployment request
-   - Validates agent name, wallet addresses
-   - Calls respondJob() to accept/reject
-   ↓
-4. If accepted → TRANSACTION phase
-   - Monitors for 50 USDC payment
-   - Deploys agent contract to Base
-   - Registers with Kosher Capital API
-   - Calls deliverJob() with results
-   ↓
-5. EVALUATION phase
-   - Auto-approves successful deployments
-   ↓
-6. Buyer receives deployment details
-```
 
-### Quick Deploy Function
+**Key Components:**
 
-The `quickDeployAgent` function handles:
+1. **AcpClient** - Direct blockchain interaction, no wrapper layers
+2. **Job Queue** - In-memory priority queue with retry logic
+3. **Quick Deploy Service** - Handles payment verification, contract deployment, API integration
+4. **Transaction Monitor** - Tracks on-chain transactions with timeout handling
+
+### Quick Deploy Service
+
+The `QuickDeployService` handles:
 1. Payment verification (50 USDC on Base)
 2. Contract deployment via Factory
-3. Kosher Capital API integration
-4. Deliverable formatting
+3. Kosher Capital API registration
+4. Deliverable formatting for ACP
 
 ---
 
@@ -177,24 +187,22 @@ The `quickDeployAgent` function handles:
 ### E2E Tests
 
 ```bash
-# Run all GameAgent tests
+# Run all tests
 pnpm test:e2e
 
 # Run specific test
-pnpm test:e2e -- -t "should initialize GameAgent"
+pnpm test:e2e -- -t "should initialize ACP Client"
 
 # Run with coverage
 pnpm test:e2e:coverage
 ```
 
 **Test Coverage:**
-- 22 tests validating GameAgent + ACP integration
+- ACP Client initialization
+- Job queue management
 - Configuration validation
-- Function registration
-- State management
 - Blockchain connectivity
-
-**Legacy tests are disabled** (`.disabled` extension) - they test outdated architecture.
+- Service integration
 
 ---
 
@@ -231,7 +239,7 @@ pnpm build
 
 # Run with PM2
 npm install -g pm2
-pm2 start dist/quickDeployAgent.js --name kosher-capital
+pm2 start dist/quickDeploy.js --name kosher-capital
 pm2 save
 pm2 startup
 ```
@@ -247,37 +255,14 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for detailed platform-specific inst
 - **[README.md](README.md)** - Project overview and quick start
 - **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** - Complete deployment guide
 - **[docs/SERVER_AGNOSTIC_CONFIRMATION.md](docs/SERVER_AGNOSTIC_CONFIRMATION.md)** - Server deployment verification
-- **[docs/acp/GAMEAGENT_MIGRATION_COMPLETE.md](docs/acp/GAMEAGENT_MIGRATION_COMPLETE.md)** - Migration summary
-- **[docs/acp/ACP_ARCHITECTURE_COMPARISON.md](docs/acp/ACP_ARCHITECTURE_COMPARISON.md)** - Architecture comparison
-- **[tests/e2e/README.md](tests/e2e/README.md)** - E2E testing guide
+- **[docs/acp/](docs/acp/)** - ACP integration documentation
 
 ### Architecture Documents
 
-- **GameAgent Pattern** - Standard Virtuals Protocol integration
-- **ACP Plugin Usage** - State management and job handling
-- **Function Implementation** - Quick Deploy function details
-- **Queue System** - In-memory job queue architecture
-
----
-
-## 🔄 Migration from Old Architecture
-
-### Legacy Files (Preserved for Reference)
-
-The following files implement the **old direct ACP Client pattern** and are **NOT** used in production:
-
-- `src/index.ts` - Old main entry point
-- `src/quickDeploy.ts` - Old QuickDeployACPAgent
-- `src/services/agentService.ts` - Old service layer
-- `tests/e2e/legacy-*.e2e.test.ts.disabled` - Old tests
-
-These can be safely removed once you're confident in the new implementation.
-
-### Current Production Files
-
-- `src/quickDeployAgent.ts` - **MAIN ENTRY POINT** (GameAgent)
-- `src/functions/quickDeploy.ts` - Quick Deploy logic
-- `tests/e2e/gameagent-acp.e2e.test.ts` - Current tests
+- **Direct ACP Client Usage** - No SDK wrappers, direct blockchain interaction
+- **Job Queue System** - In-memory queue for sequential processing
+- **Payment Verification** - On-chain USDC monitoring
+- **Contract Deployment** - Factory pattern for agent contracts
 
 ---
 
@@ -287,45 +272,48 @@ These can be safely removed once you're confident in the new implementation.
 
 - [x] TypeScript compiles without errors (`pnpm typecheck`)
 - [x] Production build succeeds (`pnpm build`)
-- [x] No Cloudflare dependencies in codebase
+- [x] No GameAgent SDK dependencies
+- [x] No Cloudflare dependencies
 - [x] Server-agnostic implementation confirmed
-- [x] All imports reference correct files
+- [x] Direct ACP Client pattern verified
 
 ### Testing
 
-- [x] E2E tests created for GameAgent pattern
-- [x] 22 tests covering core functionality
-- [x] Legacy tests disabled (not deleted)
+- [x] E2E tests for direct ACP integration
+- [x] Configuration validation tests
+- [x] Blockchain connectivity tests
 - [x] Test documentation updated
 
 ### Documentation
 
-- [x] Architecture comparison documented
-- [x] Migration summary created
+- [x] Architecture correctly documented (direct ACP)
 - [x] Deployment guide comprehensive
 - [x] Server-agnostic design confirmed
-- [x] E2E testing guide updated
+- [x] No references to GameAgent SDK
 
 ### Configuration
 
-- [x] .env.example includes all GameAgent variables
-- [x] Package.json scripts updated for GameAgent
-- [x] Quick Deploy configuration documented
+- [x] .env.example includes only ACP variables
+- [x] No GAME_API_KEY references
+- [x] Package.json scripts updated for direct ACP
 - [x] Security best practices noted
 
 ---
 
-## 🎓 Key Differences from Old Implementation
+## 🎓 Key Differences from GameAgent Pattern
 
-| Aspect | Old (Direct ACP) | New (GameAgent) |
-|--------|-----------------|-----------------|
-| Entry Point | `src/index.ts` | `src/quickDeployAgent.ts` |
-| ACP Integration | Manual AcpClient | AcpPlugin wrapper |
-| Job Processing | Custom callbacks | AI worker + functions |
-| Job Acceptance | Automatic | AI-driven analysis |
+| Aspect | This Codebase (Direct ACP) | Athena (GameAgent + ACP) |
+|--------|---------------------------|--------------------------|
+| SDK Used | None (direct `@virtuals-protocol/acp-node`) | `@virtuals-protocol/game` + `@virtuals-protocol/game-acp-plugin` |
+| Entry Point | `src/quickDeploy.ts` | GameAgent initialization |
+| ACP Integration | Direct AcpClient | AcpPlugin wrapper |
+| Job Processing | Custom queue + callbacks | AI worker + functions |
+| Job Acceptance | Business logic validation | AI-driven analysis |
 | Custom Logic | Service classes | GameFunction pattern |
-| State Management | Manual filtering | Plugin provides state |
-| Extensibility | Service methods | Add functions |
+| Extensibility | Add services/functions | Add GameFunctions |
+| Complexity | Lower (direct integration) | Higher (SDK abstraction) |
+
+**This codebase follows the simpler, direct ACP Client pattern - NOT the GameAgent SDK pattern used by Athena.**
 
 ---
 
@@ -349,9 +337,9 @@ The application uses an **in-memory job queue** for simplicity:
 
 ### Environment
 
-- **Development**: `pnpm dev` (uses `src/quickDeployAgent.ts`)
-- **Production**: `pnpm build && pnpm start` (uses `dist/quickDeployAgent.js`)
-- **Legacy**: `pnpm dev:legacy` (old implementation, for comparison)
+- **Development**: `pnpm dev` (uses `src/quickDeploy.ts`)
+- **Production**: `pnpm build && pnpm start` (uses `dist/quickDeploy.js`)
+- **Mock Testing**: `pnpm dev:mock` (simulates buyer requests)
 
 ### Security
 
@@ -367,12 +355,12 @@ The application uses an **in-memory job queue** for simplicity:
 
 ### ✅ Production Ready
 
-- GameAgent + ACP Plugin architecture implemented
+- Direct ACP Client integration implemented
 - Server-agnostic deployment verified
 - E2E tests passing
 - Documentation complete
 - TypeScript compilation clean
-- No Cloudflare dependencies
+- No unnecessary SDK dependencies
 
 ### 🔧 Future Enhancements
 
@@ -399,15 +387,14 @@ The application uses an **in-memory job queue** for simplicity:
 1. Check relevant documentation in `docs/`
 2. Review E2E test examples
 3. Verify environment configuration
-4. Check GameAgent SDK documentation
-5. Review Athena agent reference implementation
+4. Check Virtuals ACP documentation
 
 ### Common Issues
 
 **"Agent won't start"**
-- Verify GAME_API_KEY is valid
-- Check all environment variables are set
+- Verify all environment variables are set
 - Ensure wallet is registered with Virtuals
+- Check ACP_RPC_URL is accessible
 
 **"Tests failing"**
 - Run `pnpm typecheck` first
@@ -423,18 +410,18 @@ The application uses an **in-memory job queue** for simplicity:
 
 ## 🎉 Summary
 
-**The Kosher Capital Quick Deploy codebase is:**
+**The Kosher Capital Quick Deploy codebase:**
 
-✅ Fully migrated to GameAgent + ACP Plugin pattern
+✅ Uses **direct Virtuals ACP Client** (NOT GameAgent SDK)
 ✅ Server-agnostic (works on any Node.js server)
 ✅ Production-ready with comprehensive testing
-✅ Well-documented with migration guides
-✅ Following Virtuals Protocol best practices
+✅ Well-documented with clear architecture
+✅ Simple, maintainable, efficient
 
-**Ready for deployment and integration with the ACP network!**
+**Ready for deployment with Virtuals ACP network!**
 
 ---
 
-**Version:** 2.0 (GameAgent Architecture)
+**Architecture:** Direct ACP Client Pattern
 **Last Updated:** 2025-01-03
 **Status:** ✅ Production Ready
