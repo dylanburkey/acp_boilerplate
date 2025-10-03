@@ -11,6 +11,9 @@ importers:
       '@virtuals-protocol/acp-node':
         specifier: ^0.2.0-beta.10
         version: 0.2.0-beta.10(bufferutil@4.0.9)(tsx@4.20.5)(typescript@5.9.2)(utf-8-validate@5.0.10)(yaml@2.8.1)(zod@3.25.76)
+      '@virtuals-protocol/game':
+        specifier: ^0.1.14
+        version: 0.1.14
       '@virtuals-protocol/game-acp-plugin':
         specifier: ^0.2.9
         version: 0.2.9(bufferutil@4.0.9)(tsx@4.20.5)(typescript@5.9.2)(utf-8-validate@5.0.10)(yaml@2.8.1)(zod@3.25.76)
