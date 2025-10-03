@@ -285,6 +285,34 @@ For issues or questions:
 3. See GameAgent SDK docs
 4. Contact Virtuals Protocol team
 
+## Server Deployment
+
+**This codebase is server-agnostic** and can run on any Node.js server:
+
+✅ **Works on:**
+- Traditional VPS (DigitalOcean, Linode, Vultr)
+- Docker containers
+- Kubernetes clusters
+- AWS EC2, Google Compute, Azure VMs
+- Heroku, Railway, Render
+- Self-hosted servers
+
+❌ **Does NOT require:**
+- Cloudflare Workers
+- Cloudflare Durable Objects
+- Serverless-specific platforms
+
+### In-Memory Job Queue
+
+The application uses an in-memory job queue for simplicity:
+- ✅ No external dependencies
+- ✅ Works on any server
+- ✅ Simple deployment
+- ⚠️ Jobs lost on restart (design consideration)
+- ⚠️ Single instance only (for now)
+
+See [docs/DEPLOYMENT.md](../DEPLOYMENT.md) for detailed deployment instructions.
+
 ## Next Steps
 
 1. **Test thoroughly** - Run multiple deployment cycles
