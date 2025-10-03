@@ -7,8 +7,8 @@ Welcome to the ACP Quick Deploy Integration documentation. This index will help 
 **New to the project?** Start here:
 
 1. [README](../README.md) - Project overview and setup
-2. [Quick Start Guide](../QUICKSTART.md) - Get up and running in 5 minutes
-3. [Plug and Play Setup](../PLUG-AND-PLAY-SETUP.md) - Easiest setup method
+2. [Quick Start Guide](setup/QUICKSTART.md) - Get up and running in 5 minutes
+3. [Plug and Play Setup](setup/PLUG-AND-PLAY-SETUP.md) - Easiest setup method
 
 ## 📖 Documentation Structure
 
@@ -89,8 +89,9 @@ Older documentation kept for reference:
 
 #### Set Up the Project
 1. [README](../README.md) - Overview
-2. [Quick Start](../QUICKSTART.md) - Fast setup
-3. [Configuration](../CONFIGURATION.md) - Detailed config
+2. [Quick Start](setup/QUICKSTART.md) - Fast setup
+3. [Plug and Play Setup](setup/PLUG-AND-PLAY-SETUP.md) - Easiest method
+4. [Configuration](setup/CONFIGURATION.md) - Detailed config
 
 #### Understand ACP Integration
 1. [ACP Overview](acp/ACP-OVERVIEW.md) - What is ACP?
@@ -111,7 +112,7 @@ Older documentation kept for reference:
 #### Implement Custom Logic
 1. [Custom Logic Guide](guides/CUSTOM-LOGIC-GUIDE.md) - Implementation guide
 2. [Business Use Cases](guides/BUSINESS-USE-CASES.md) - Examples
-3. [QUICKDEPLOY.md](../QUICKDEPLOY.md) - Quick Deploy specifics
+3. [Quick Deploy Guide](quick-deploy/QUICKDEPLOY.md) - Quick Deploy specifics
 
 #### Troubleshoot Issues
 1. [Non-Technical Troubleshooting](guides/NON-TECHNICAL-TROUBLESHOOTING.md) - Common issues
@@ -164,7 +165,8 @@ Can't find what you're looking for?
 
 **Quick Links**:
 [🏠 Home](../README.md) |
-[🚀 Quick Start](../QUICKSTART.md) |
-[⚙️ Configuration](../CONFIGURATION.md) |
-[🧪 Testing](../TESTING.md) |
+[🚀 Quick Start](setup/QUICKSTART.md) |
+[⚙️ Configuration](setup/CONFIGURATION.md) |
+[🧪 Testing](testing/TESTING.md) |
+[🔒 Security](../SECURITY.md) |
 [📊 Status](acp/IMPLEMENTATION_STATUS.md)

@@ -43,9 +43,9 @@ pnpm run dev
 pnpm run dev:mock
 ```
 
-🔌 **For complete step-by-step instructions, see [PLUG-AND-PLAY-SETUP.md](PLUG-AND-PLAY-SETUP.md)**
+🔌 **For complete step-by-step instructions, see [PLUG-AND-PLAY-SETUP.md](docs/setup/PLUG-AND-PLAY-SETUP.md)**
 
-**New to AI agents or business automation?** 👉 Start with our [Non-Developer Guide](docs/NON-DEVELOPER-GUIDE.md) - no coding required!
+**New to AI agents or business automation?** 👉 Start with our [Non-Developer Guide](docs/guides/NON-DEVELOPER-GUIDE.md) - no coding required!
 
 ## 📋 Prerequisites
 
@@ -246,26 +246,31 @@ CMD ["node", "dist/index.js"]
 ## 📚 Complete Documentation Suite
 
 ### 🚀 **Quick Start (Choose Your Path)**
-- **Non-Developers:** [Non-Developer Guide](docs/NON-DEVELOPER-GUIDE.md) - Complete business guide with no coding required
-- **Visual Learners:** [Visual Setup Guide](docs/VISUAL-SETUP-GUIDE.md) - Step-by-step with screenshot descriptions  
-- **Developers:** [Plug-and-Play Setup](PLUG-AND-PLAY-SETUP.md) - Technical quick start
+- **Non-Developers:** [Non-Developer Guide](docs/guides/NON-DEVELOPER-GUIDE.md) - Complete business guide with no coding required
+- **Visual Learners:** [Visual Setup Guide](docs/guides/VISUAL-SETUP-GUIDE.md) - Step-by-step with screenshot descriptions
+- **Developers:** [Plug-and-Play Setup](docs/setup/PLUG-AND-PLAY-SETUP.md) - Technical quick start
 
 #### 💼 **Business & Strategy** ⭐ **Most Popular**
-- [Business Use Cases & Success Stories](docs/BUSINESS-USE-CASES.md) - Real examples earning $6K-12K/month
-- [Business Description Templates](docs/business-description-templates.md) - Write compelling service descriptions
-- [Graduation Guide](docs/graduation-guide.md) - Sandbox to production roadmap
+- [Business Use Cases & Success Stories](docs/guides/BUSINESS-USE-CASES.md) - Real examples earning $6K-12K/month
+- [Business Description Templates](docs/guides/business-description-templates.md) - Write compelling service descriptions
+- [Graduation Guide](docs/guides/graduation-guide.md) - Sandbox to production roadmap
 
 ### 🛠️ **Technical Implementation**
-- [Custom Logic Implementation](docs/CUSTOM-LOGIC-GUIDE.md) - Add your business logic (beginner-friendly)
-- [Getting Started Guide](docs/getting-started.md) - Technical setup details
-- [Configuration Options](docs/configuration.md) - All environment variables
+- [Custom Logic Implementation](docs/guides/CUSTOM-LOGIC-GUIDE.md) - Add your business logic (beginner-friendly)
+- [Getting Started Guide](docs/archive/getting-started.md) - Technical setup details
+- [Configuration Options](docs/setup/CONFIGURATION.md) - All environment variables
+- [Quick Deploy Guide](docs/quick-deploy/QUICKDEPLOY.md) - Kosher Capital integration
+
+### 🧪 **Testing**
+- [E2E Testing Guide](docs/testing/E2E_TEST_SUMMARY.md) - Complete testing overview
+- [Testing Documentation](docs/testing/TESTING.md) - How to test your integration
 
 ### 🆘 **Support & Troubleshooting**
-- [Non-Technical Troubleshooting](docs/NON-TECHNICAL-TROUBLESHOOTING.md) - Fix issues without coding ⭐
-- [Technical Troubleshooting](docs/troubleshooting.md) - Developer-focused solutions
-- [ACP Protocol Overview](docs/ACP-OVERVIEW.md) - Understanding the network
+- [Non-Technical Troubleshooting](docs/guides/NON-TECHNICAL-TROUBLESHOOTING.md) - Fix issues without coding ⭐
+- [Technical Troubleshooting](docs/archive/troubleshooting.md) - Developer-focused solutions
+- [ACP Protocol Overview](docs/acp/ACP-OVERVIEW.md) - Understanding the network
 
-**📚 [Complete Documentation Index](docs/README.md) - Find the perfect guide for your experience level**
+**📚 [Complete Documentation Index](docs/INDEX.md) - Find the perfect guide for your experience level**
 
 ---
 
@@ -300,6 +305,8 @@ interface AgentResponse {
 3. **Use rate limiting** - Prevent abuse
 4. **Monitor gas prices** - Set `MAX_GAS_PRICE` to avoid excessive fees
 5. **Implement request signing** - Verify request authenticity
+
+**📖 See [SECURITY.md](SECURITY.md) for comprehensive security guidelines**
 
 ## 🤝 Contributing
 
