@@ -28,14 +28,14 @@ Tests the **NEW** GameAgent + ACP Plugin implementation:
 
 **This is the PRIMARY test suite** for the GameAgent architecture.
 
-### 2. Legacy Tests (Disabled) 🗄️
+### 2. Legacy Tests ❌ REMOVED
 
-The following tests are from the **OLD** direct ACP Client implementation and are **DISABLED**:
+The old E2E tests from the **direct ACP Client implementation** have been removed:
 
-- `legacy-acp-flow.e2e.test.ts.disabled` - Old ACP flow without GameAgent
-- `legacy-quick-deploy.e2e.test.ts.disabled` - Old Quick Deploy service tests
+- ~~`legacy-acp-flow.e2e.test.ts`~~ - Old ACP flow without GameAgent (removed)
+- ~~`legacy-quick-deploy.e2e.test.ts`~~ - Old Quick Deploy service tests (removed)
 
-These tests reference the old architecture (`src/index.ts`, `src/quickDeploy.ts`) and are kept for reference only.
+These tests referenced the old architecture (`src/index.ts`, `src/quickDeploy.ts`) which is no longer used.
 
 ## Running Tests
 
@@ -45,7 +45,7 @@ These tests reference the old architecture (`src/index.ts`, `src/quickDeploy.ts`
 pnpm test:e2e
 ```
 
-This runs **only** the GameAgent tests (`gameagent-acp.e2e.test.ts`). Legacy tests are ignored (`.disabled` extension).
+This runs **only** the GameAgent tests (`gameagent-acp.e2e.test.ts`).
 
 ### Run with Watch Mode
 
@@ -196,7 +196,7 @@ module.exports = {
 };
 ```
 
-Files ending in `.disabled` are automatically ignored.
+Only files matching `**/*.e2e.test.ts` are run.
 
 ### Global Test Utilities
 
@@ -325,16 +325,14 @@ jobs:
         run: pnpm test:e2e
 ```
 
-## Migration from Legacy Tests
+## Migration from Legacy Architecture
 
-If you need to reference the old test logic:
+The old E2E tests have been removed. If you need to reference the old architecture:
 
-1. Check `legacy-acp-flow.e2e.test.ts.disabled`
-2. Check `legacy-quick-deploy.e2e.test.ts.disabled`
+1. Check `src/index.ts` - Old direct ACP Client implementation (legacy, not used)
+2. Check `src/quickDeploy.ts` - Old QuickDeployACPAgent (legacy, not used)
 
-These test the old direct ACP Client pattern without GameAgent.
-
-**Do NOT re-enable these tests** - they test outdated architecture.
+The old tests tested the direct ACP Client pattern without GameAgent, which is no longer the production architecture.
 
 ## Support
 
