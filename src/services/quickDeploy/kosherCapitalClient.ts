@@ -256,7 +256,7 @@ export class KosherCapitalClient {
 
       // Execute with circuit breaker if enabled
       const executeOperation = this.circuitBreaker
-        ? () => this.circuitBreaker.execute(operation)
+        ? () => this.circuitBreaker!.execute(operation)
         : operation;
 
       // Execute with retry logic

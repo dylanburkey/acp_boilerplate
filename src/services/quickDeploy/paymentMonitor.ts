@@ -131,6 +131,8 @@ export class PaymentMonitor {
 
         // Check each event
         for (const event of events) {
+          // Type guard to check if event has args property
+          if (!('args' in event)) continue;
           const args = event.args as unknown as TransferEvent;
 
           // Verify amount matches expected
@@ -272,17 +274,19 @@ export class PaymentMonitor {
         currentBlock
       );
 
-      return events.map((event) => {
-        const args = event.args as unknown as TransferEvent;
-        return {
-          hash: event.transactionHash!,
-          blockNumber: event.blockNumber,
-          amount: ethers.formatUnits(args.value, 6), // Convert to USDC
-          from: args.from,
-          to: args.to,
-          timestamp: Date.now(), // Note: This is current time, not block time
-        };
-      });
+      return events
+        .filter((event): event is typeof event & { args: any } => 'args' in event)
+        .map((event) => {
+          const args = event.args as unknown as TransferEvent;
+          return {
+            hash: event.transactionHash!,
+            blockNumber: event.blockNumber,
+            amount: ethers.formatUnits(args.value, 6), // Convert to USDC
+            from: args.from,
+            to: args.to,
+            timestamp: Date.now(), // Note: This is current time, not block time
+          };
+        });
 
     } catch (error) {
       this.logger.error(

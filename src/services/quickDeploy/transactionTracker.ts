@@ -307,7 +307,7 @@ export class TransactionTracker {
   generateReport(startDate: Date, endDate: Date): {
     period: { start: string; end: string };
     transactions: DeploymentTransaction[];
-    statistics: ReturnType<typeof this.getStatistics>;
+    statistics: ReturnType<TransactionTracker['getStatistics']>;
     revenue: { expected: number; collected: number };
   } {
     const transactions: DeploymentTransaction[] = [];

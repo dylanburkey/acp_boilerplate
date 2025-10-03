@@ -155,7 +155,7 @@ export class ErrorFactory {
       return new ProcessingError(error);
     }
 
-    return new ProcessingError(defaultMessage, undefined, error);
+    return new ProcessingError(defaultMessage, undefined, error as string);
   }
 }
 

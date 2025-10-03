@@ -35,7 +35,7 @@ export function createStatusApi(): express.Application {
   };
   
   // Health check endpoint
-  app.get('/health', (req: Request, res: Response) => {
+  app.get('/health', (_req: Request, res: Response) => {
     res.json({
       status: 'healthy',
       service: 'QuickDeploy-ACP',
@@ -104,7 +104,7 @@ export function createStatusApi(): express.Application {
   });
   
   // Get deployment statistics
-  app.get('/api/statistics', authenticate, (req: Request, res: Response) => {
+  app.get('/api/statistics', authenticate, (_req: Request, res: Response) => {
     const stats = transactionTracker.getStatistics();
     res.json(stats);
   });
@@ -151,7 +151,7 @@ export function createStatusApi(): express.Application {
   });
   
   // Error handling middleware
-  app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+  app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
     logger.error('API Error:', err);
     res.status(500).json({ error: 'Internal server error' });
   });

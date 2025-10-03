@@ -138,7 +138,7 @@ export class QuickDeployContract {
    * @param {ethers.Signer} signer - Signer for the transactions
    * @returns {Promise<boolean>} True if simulation succeeds
    */
-  async simulateDeployment(params: DeploymentParams, signer: ethers.Signer): Promise<boolean> {
+  async simulateDeployment(params: DeploymentParams, _signer: ethers.Signer): Promise<boolean> {
     try {
       this.logger.info(`${LOG_PREFIX.PROCESSING} Simulating deployment process...`);
       
@@ -377,16 +377,13 @@ export class QuickDeployContract {
    * @returns {Promise<string>} Latest transaction hash
    * @private
    */
-  private async getLatestTransactionHash(address: string): Promise<string> {
+  private async getLatestTransactionHash(_address: string): Promise<string> {
     // This is a simplified version - in production you might want to use
     // a more robust method to track the specific transaction
-    const latestBlock = await this.provider.getBlockNumber();
-    const history = await this.provider.getHistory(address, latestBlock - 10, latestBlock);
-    
-    if (history.length > 0) {
-      return history[history.length - 1].hash;
-    }
-    
+    // Note: JsonRpcProvider doesn't have getHistory method in ethers v6
+    // This would need to be implemented using block scanning or a transaction indexer
+
+    this.logger.warn('getLatestTransactionHash is not implemented - returning zero hash');
     return '0x0000000000000000000000000000000000000000000000000000000000000000';
   }
 

@@ -8,8 +8,8 @@
  */
 
 import { AcpJob } from '@virtuals-protocol/acp-node';
-import { Logger } from '../logger';
-import { LOG_PREFIX } from '../../services/quickDeploy/constants';
+import { Logger } from './logger';
+import { LOG_PREFIX } from '../services/quickDeploy/constants';
 
 /**
  * Priority queue item structure

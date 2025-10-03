@@ -139,7 +139,7 @@ export class EventMonitor {
         const event = args[args.length - 1];
         
         const monitoredEvent: MonitoredEvent = {
-          eventName: filterConfig.eventName,
+          eventName: filterConfig.eventName as any,
           transactionHash: event.log.transactionHash,
           blockNumber: event.log.blockNumber,
           args: args.slice(0, -1), // All args except the event object

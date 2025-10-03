@@ -90,7 +90,7 @@ export class RetryUtil {
         
         this.logger.warn(
           `${LOG_PREFIX.WARNING} Retry attempt ${attempt}/${maxAttempts} after ${delay}ms`,
-          { error: error?.message || error }
+          { error: (error as Error)?.message || error }
         );
         
         // Call retry callback if provided
@@ -143,7 +143,6 @@ export class CircuitBreaker {
   private readonly logger = Logger;
   private readonly failureThreshold: number;
   private readonly resetTimeoutMs: number;
-  private readonly monitoringPeriodMs: number;
 
   constructor(
     private readonly name: string,
@@ -151,7 +150,8 @@ export class CircuitBreaker {
   ) {
     this.failureThreshold = options.failureThreshold || 5;
     this.resetTimeoutMs = options.resetTimeoutMs || 60000; // 1 minute
-    this.monitoringPeriodMs = options.monitoringPeriodMs || 300000; // 5 minutes
+    // monitoringPeriodMs is available but not currently used
+    // Can be used for future monitoring features
   }
 
   /**

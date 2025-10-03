@@ -118,7 +118,7 @@ export class QuickDeployACPAgent {
         config.whitelistedWalletPrivateKey as `0x${string}`,
         config.whitelistedWalletEntityId,
         config.sellerAgentWalletAddress as `0x${string}`,
-        config.acpRpcUrl ? { rpcUrl: config.acpRpcUrl } : undefined
+        config.acpRpcUrl ? { rpcUrl: config.acpRpcUrl } as any : undefined
       );
 
       // Initialize ACP client with callbacks

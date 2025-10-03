@@ -62,6 +62,16 @@ Comprehensive guides for different user types:
 
 **Start here if you're**: Non-technical user, implementing custom logic, or looking for examples
 
+### 🧪 Testing (`testing/`)
+
+Testing documentation and guides:
+
+- **[E2E Test Summary](testing/E2E_TEST_SUMMARY.md)** ⭐ - Complete E2E testing implementation
+- **[E2E Test Guide](../tests/e2e/README.md)** - How to run and write E2E tests
+- **[ACP Flow Simulation](../tests/README.md)** - ACP flow test documentation
+
+**Start here if you're**: Running tests, writing new tests, or understanding test coverage
+
 ### 📦 Archive (`archive/`)
 
 Older documentation kept for reference:
@@ -93,9 +103,10 @@ Older documentation kept for reference:
 3. [Developer Guide](quick-deploy/kosher-capital-developer-guide.md) - Technical details
 
 #### Test My Integration
-1. [Testing Guide](quick-deploy/kosher-capital-testing-guide.md) - Quick Deploy tests
-2. [Test Documentation](../tests/README.md) - ACP flow simulation
-3. [TESTING.md](../TESTING.md) - General testing guide
+1. [E2E Test Summary](testing/E2E_TEST_SUMMARY.md) - Complete testing overview
+2. [E2E Test Guide](../tests/e2e/README.md) - How to run E2E tests
+3. [Quick Deploy Testing](quick-deploy/kosher-capital-testing-guide.md) - Quick Deploy tests
+4. [ACP Flow Simulation](../tests/README.md) - ACP flow simulation
 
 #### Implement Custom Logic
 1. [Custom Logic Guide](guides/CUSTOM-LOGIC-GUIDE.md) - Implementation guide
@@ -114,10 +125,11 @@ Older documentation kept for reference:
 | ACP Integration | 4 | ✅ Complete | 100% |
 | Quick Deploy | 8 | ✅ Complete | 100% |
 | User Guides | 7 | ✅ Complete | 100% |
+| Testing | 3 | ✅ Complete | 100% |
 | Setup Docs | 5 | ✅ Complete | 100% |
-| Tests | 1 | ✅ Complete | 100% |
+| Archive | 4 | 📦 Reference | - |
 
-**Total**: 25 documentation files
+**Total**: 31 documentation files
 
 ## 🔗 External Resources
 
