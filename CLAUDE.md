@@ -23,39 +23,40 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-This is an ACP (Agent Commerce Protocol) integration boilerplate for connecting AI agents to the Virtuals Protocol network on Base chain. The agent accepts paid requests from buyers, processes them, and returns results through blockchain transactions.
+This is a **direct Virtuals ACP (Agent Commerce Protocol) integration** for the Kosher Capital Quick Deploy service. The agent accepts paid deployment requests from buyers, verifies USDC payments on Base chain, deploys agent contracts, and returns deployment details through blockchain transactions.
 
-### Latest Updates (v0.2.9)
-- Uses `@virtuals-protocol/game-acp-plugin` v0.2.9
-- Uses `@virtuals-protocol/acp-node` v0.2.0-beta.10
-- Full support for job processing, delivery, and blockchain integration
-- Session key support for gas-efficient transactions
+**Important:** This codebase uses **direct ACP Client** (`@virtuals-protocol/acp-node` only), NOT the GameAgent SDK pattern. This provides a simpler, faster, more cost-effective solution for deterministic services.
 
-### Core Flow
-1. **AcpIntegration** (src/index.ts) - Main orchestrator that initializes ACP client, monitors for jobs, and manages the processing loop
-2. **AgentService** (src/services/agentService.ts) - Defines the agent's functionality. Two implementations:
-   - `DefaultAgentService` - Forwards requests to an external API endpoint
-   - `CustomAgentService` - Implements custom logic directly in code
-3. **Job Processing** - Jobs are queued, processed with retry logic, and results are submitted on-chain via accept/reject transactions
-
-### Key Components
-- **JobQueue** (src/utils/jobQueue.ts) - Priority queue with retry management for processing buyer requests
-- **TransactionMonitor** (src/utils/transactionMonitor.ts) - Tracks blockchain transactions with timeout handling
+### Core Components
+- **QuickDeployACPAgent** (src/services/quickDeploy/acpSellerAgent.ts) - Main ACP seller agent that processes deployment jobs
+- **QuickDeployService** (src/services/quickDeploy/quickDeployService.ts) - Handles payment verification, contract deployment, and Kosher Capital API integration
+- **JobQueue** (src/utils/jobQueue.ts) - Priority queue with retry management for sequential job processing
 - **AcpStateManager** (src/utils/acpStateManager.ts) - Filters and manages ACP state to prevent memory issues
 - **Config** (src/config/index.ts) - Centralized configuration loaded from environment variables
 
-### Service Customization
-To implement custom agent logic, modify `CustomAgentService` in src/services/agentService.ts and update the initialization in src/index.ts:28 to use `CustomAgentService` instead of `DefaultAgentService`.
+### Core Flow
+1. **Direct ACP Client** (src/quickDeploy.ts) - Initializes AcpClient with onNewTask and onEvaluate callbacks
+2. **Job Queue** - New jobs are added to priority queue for sequential processing
+3. **Job Processing** - Each job goes through:
+   - REQUEST phase: Validate deployment request, accept/reject
+   - TRANSACTION phase: Verify 50 USDC payment, deploy contract, deliver results
+   - EVALUATION phase: Auto-approve successful deployments
+4. **Blockchain Integration** - Direct calls to AcpClient for job responses and deliverables
 
 ## Environment Configuration
 
 Required environment variables (set in .env):
-- `GAME_API_KEY` - API key from Virtuals Console
-- `WHITELISTED_WALLET_PRIVATE_KEY` - Private key for wallet that pays gas fees
-- `AGENT_WALLET_ADDRESS` - Address that receives payments
-- `SERVICE_NAME` - Name displayed to users
+- `WHITELISTED_WALLET_PRIVATE_KEY` - Private key for wallet registered with Virtuals (gas fees handled by protocol)
+- `WHITELISTED_WALLET_ENTITY_ID` - Entity ID from wallet registration
+- `SELLER_AGENT_WALLET_ADDRESS` - Address that receives USDC payments
+- `SERVICE_NAME` - Service name displayed to buyers
 - `SERVICE_DESCRIPTION` - Service description
-- `API_ENDPOINT` - External API endpoint (for DefaultAgentService)
+- `SERVICE_PRICE` - Price in USDC (default: 50)
+- `SHEKEL_API_KEY` - Kosher Capital API key
+- `KOSHER_CAPITAL_API_URL` - Kosher Capital API endpoint
+- `FACTORY_CONTRACT_ADDRESS` - Agent factory contract address
+
+Note: No GAME_API_KEY needed - this codebase uses direct ACP Client only.
 
 ## TypeScript Configuration
 

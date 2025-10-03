@@ -7,10 +7,12 @@ pnpm-debug.log*
 package-lock.json
 yarn.lock
 
-# Environment files
+# Environment files - exclude all .env files except examples
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!.env.*.example
+!examples/**/.env.example
 
 # Build outputs
 dist/
@@ -55,3 +57,15 @@ Thumbs.db
 *.pem
 *.p12
 *.pfx
+
+# Sensitive configuration files
+.env.local
+.env.*.local
+.env.production
+.env.development
+**/secrets.json
+**/credentials.json
+
+# Prevent accidental commits of real values
+.env.test.real
+.env.*.real

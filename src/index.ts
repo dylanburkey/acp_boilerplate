@@ -5,7 +5,7 @@
  * This file initializes and manages an AI agent that can process jobs through
  * the Virtuals Protocol network, handling job lifecycle from receipt to delivery.
  *
- * @author ACP Integration Boilerplate
+ * @author Dylan Burkey
  * @license MIT
  */
 

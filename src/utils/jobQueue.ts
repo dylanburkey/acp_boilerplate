@@ -1,190 +1,251 @@
 /**
- * Job Queue implementation for ACP jobs to prevent transaction conflicts
- * Based on Virtuals Protocol threading example
+ * @fileoverview Job queue implementation for sequential ACP job processing.
+ * Prevents transaction conflicts by processing jobs one at a time with proper delays.
+ * Based on Athena's implementation for reliable job handling.
+ * 
+ * @author Athena AI Team
+ * @license MIT
  */
 
 import { AcpJob } from '@virtuals-protocol/acp-node';
 import { Logger } from './logger';
-import { TransactionMonitor } from './transactionMonitor';
+import { LOG_PREFIX } from '../services/quickDeploy/constants';
 
-export interface QueuedJob {
+/**
+ * Priority queue item structure
+ */
+interface QueueItem {
   job: AcpJob;
   priority: number;
-  timestamp: Date;
-  retryCount: number;
+  addedAt: Date;
 }
 
-export class JobQueue {
-  private queue: QueuedJob[] = [];
-  private processing = false;
-  private processingDelay: number;
-  private maxRetries: number;
-  private processJobCallback: (job: AcpJob) => Promise<void>;
+/**
+ * Job processor function type
+ */
+type JobProcessor = (job: AcpJob) => Promise<void>;
+
+/**
+ * Queue status information
+ */
+export interface QueueStatus {
+  queueLength: number;
+  isProcessing: boolean;
+  currentJob?: AcpJob;
+  processedCount: number;
+  failedCount: number;
+}
+
+/**
+ * Queue interface for different implementations
+ */
+export interface QueueInterface {
+  enqueue(job: AcpJob, priority: number): void;
+  stopProcessing?(): void;
+  getQueueStatus?(): Promise<QueueStatus>;
+}
+
+/**
+ * In-memory priority queue for ACP jobs
+ * Jobs with higher priority are processed first
+ */
+export class JobQueue implements QueueInterface {
+  private readonly logger = Logger;
+  private readonly queue: QueueItem[] = [];
+  private isProcessing = false;
+  private readonly processor: JobProcessor;
+  private readonly processingDelay: number;
+  private readonly maxRetries: number;
+  private shouldStop = false;
+  private processedCount = 0;
+  private failedCount = 0;
+  private currentJob?: AcpJob;
 
   constructor(
-    processJobCallback: (job: AcpJob) => Promise<void>,
-    processingDelay: number = 2000, // 2 seconds between jobs
+    processor: JobProcessor,
+    processingDelay: number = 3000,
     maxRetries: number = 3
   ) {
-    this.processJobCallback = processJobCallback;
+    this.processor = processor;
     this.processingDelay = processingDelay;
     this.maxRetries = maxRetries;
+    
+    this.logger.info(
+      `${LOG_PREFIX.INIT} JobQueue initialized`,
+      { processingDelay, maxRetries }
+    );
   }
 
   /**
-   * Add a job to the queue with priority
+   * Add job to queue with priority
    */
-  enqueue(job: AcpJob, priority: number = 0): void {
-    const queuedJob: QueuedJob = {
+  enqueue(job: AcpJob, priority: number): void {
+    const queueItem: QueueItem = {
       job,
       priority,
-      timestamp: new Date(),
-      retryCount: 0,
+      addedAt: new Date(),
     };
-
-    Logger.log(`[JobQueue] Enqueuing job #${job.id} (Phase: ${job.phase}, Priority: ${priority})`);
-
-    // Insert job based on priority (higher priority first)
-    const insertIndex = this.queue.findIndex((item) => item.priority < priority);
+    
+    // Insert in priority order (higher priority first)
+    const insertIndex = this.queue.findIndex(item => item.priority < priority);
     if (insertIndex === -1) {
-      this.queue.push(queuedJob);
+      this.queue.push(queueItem);
     } else {
-      this.queue.splice(insertIndex, 0, queuedJob);
+      this.queue.splice(insertIndex, 0, queueItem);
     }
-
+    
+    this.logger.info(
+      `${LOG_PREFIX.INFO} Job queued`,
+      {
+        jobId: job.id,
+        phase: job.phase,
+        priority,
+        queueLength: this.queue.length,
+      }
+    );
+    
     // Start processing if not already running
-    if (!this.processing) {
-      this.processQueue().catch((error) => {
-        Logger.error('[JobQueue] Fatal error in queue processing:', error);
-        this.processing = false;
-      });
+    if (!this.isProcessing && !this.shouldStop) {
+      this.startProcessing();
     }
   }
 
   /**
-   * Process jobs sequentially with delay between them
+   * Start processing jobs from the queue
    */
-  private async processQueue(): Promise<void> {
-    // Prevent duplicate processing
-    if (this.processing) {
-      Logger.debug('[JobQueue] Already processing, skipping duplicate call');
-      return;
-    }
-
-    if (this.queue.length === 0) {
-      Logger.debug('[JobQueue] Queue is empty, nothing to process');
-      return;
-    }
-
-    this.processing = true;
-
-    while (this.queue.length > 0) {
-      const queuedJob = this.queue.shift();
-      if (!queuedJob) break;
-
+  private async startProcessing(): Promise<void> {
+    if (this.isProcessing) return;
+    
+    this.isProcessing = true;
+    this.logger.info(`${LOG_PREFIX.PROCESSING} Starting job processing`);
+    
+    while (this.queue.length > 0 && !this.shouldStop) {
+      const queueItem = this.queue.shift()!;
+      this.currentJob = queueItem.job;
+      
       try {
-        Logger.log(
-          `[JobQueue] Processing job #${queuedJob.job.id} (${this.queue.length} remaining)`
-        );
-        await this.processJobCallback(queuedJob.job);
-        Logger.log(`[JobQueue] Successfully processed job #${queuedJob.job.id}`);
+        await this.processJob(queueItem.job);
+        this.processedCount++;
+        
+        // Delay before next job to prevent conflicts
+        if (this.queue.length > 0) {
+          this.logger.debug(
+            `${LOG_PREFIX.INFO} Waiting ${this.processingDelay}ms before next job`
+          );
+          await this.delay(this.processingDelay);
+        }
+        
       } catch (error) {
-        Logger.error(`[JobQueue] Error processing job #${queuedJob.job.id}:`, error);
+        this.failedCount++;
+        this.logger.error(
+          `${LOG_PREFIX.ERROR} Job processing failed`,
+          { jobId: queueItem.job.id, error }
+        );
+      }
+    }
+    
+    this.isProcessing = false;
+    this.currentJob = undefined;
+    this.logger.info(
+      `${LOG_PREFIX.SUCCESS} Job processing stopped`,
+      { processed: this.processedCount, failed: this.failedCount }
+    );
+  }
 
-        // Log transaction error for monitoring
-        TransactionMonitor.logTransactionError(String(queuedJob.job.id), error);
-
-        // Handle retry logic
-        if (this.shouldRetry(error, queuedJob)) {
-          await this.retryJob(queuedJob);
+  /**
+   * Process a single job with retry logic
+   */
+  private async processJob(job: AcpJob): Promise<void> {
+    let attempts = 0;
+    let lastError: any;
+    
+    while (attempts < this.maxRetries) {
+      attempts++;
+      
+      try {
+        this.logger.info(
+          `${LOG_PREFIX.PROCESSING} Processing job`,
+          {
+            jobId: job.id,
+            phase: job.phase,
+            attempt: attempts,
+          }
+        );
+        
+        await this.processor(job);
+        
+        this.logger.info(
+          `${LOG_PREFIX.SUCCESS} Job processed successfully`,
+          { jobId: job.id }
+        );
+        
+        return;
+        
+      } catch (error) {
+        lastError = error;
+        
+        this.logger.warn(
+          `${LOG_PREFIX.WARNING} Job processing attempt failed`,
+          {
+            jobId: job.id,
+            attempt: attempts,
+            error,
+          }
+        );
+        
+        if (attempts < this.maxRetries) {
+          // Exponential backoff
+          const retryDelay = Math.min(1000 * Math.pow(2, attempts - 1), 10000);
+          await this.delay(retryDelay);
         }
       }
-
-      // Add delay between jobs to prevent nonce conflicts
-      if (this.queue.length > 0) {
-        Logger.debug(`[JobQueue] Waiting ${this.processingDelay}ms before next job`);
-        await new Promise((resolve) => setTimeout(resolve, this.processingDelay));
-      }
     }
-
-    this.processing = false;
-    Logger.log('[JobQueue] Queue processing complete');
-  }
-
-  /**
-   * Determine if a job should be retried based on the error
-   */
-  private shouldRetry(error: unknown, queuedJob: QueuedJob): boolean {
-    const errorStr = String(error);
-
-    // Don't retry if max retries exceeded
-    if (queuedJob.retryCount >= this.maxRetries) {
-      Logger.warn(`[JobQueue] Job #${queuedJob.job.id} exceeded max retries (${this.maxRetries})`);
-      return false;
-    }
-
-    // Retry on specific blockchain errors
-    const retryableErrors = [
-      'replacement underpriced',
-      'nonce too low',
-      'transaction underpriced',
-      'insufficient funds for gas',
-      'timeout',
-    ];
-
-    return retryableErrors.some((retryableError) =>
-      errorStr.toLowerCase().includes(retryableError)
+    
+    // All retries exhausted
+    throw new Error(
+      `Job ${job.id} failed after ${attempts} attempts: ${lastError?.message || 'Unknown error'}`
     );
   }
 
   /**
-   * Retry a failed job with exponential backoff
+   * Stop processing jobs
    */
-  private async retryJob(queuedJob: QueuedJob): Promise<void> {
-    queuedJob.retryCount++;
-
-    // Exponential backoff: 2^retryCount seconds
-    const backoffDelay = Math.min(Math.pow(2, queuedJob.retryCount) * 1000, 30000); // Max 30s
-
-    Logger.warn(
-      `[JobQueue] Retrying job #${queuedJob.job.id} (attempt ${queuedJob.retryCount}/${this.maxRetries}) after ${backoffDelay}ms`
-    );
-
-    await new Promise((resolve) => setTimeout(resolve, backoffDelay));
-
-    // Re-enqueue with higher priority
-    this.enqueue(queuedJob.job, queuedJob.priority + 1);
+  stopProcessing(): void {
+    this.shouldStop = true;
+    this.logger.info(`${LOG_PREFIX.INFO} Job processing stop requested`);
   }
 
   /**
    * Get current queue status
    */
-  getStatus(): { queueLength: number; isProcessing: boolean; jobs: string[] } {
+  async getQueueStatus(): Promise<QueueStatus> {
     return {
       queueLength: this.queue.length,
-      isProcessing: this.processing,
-      jobs: this.queue.map((q) => `#${q.job.id} (${q.job.phase})`),
+      isProcessing: this.isProcessing,
+      currentJob: this.currentJob,
+      processedCount: this.processedCount,
+      failedCount: this.failedCount,
     };
   }
 
   /**
-   * Clear the queue (emergency use only)
+   * Utility function for delays
    */
-  clear(): void {
-    Logger.warn(`[JobQueue] Clearing queue with ${this.queue.length} pending jobs`);
-    this.queue = [];
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
+}
 
-  /**
-   * Gracefully stop processing after current job
-   */
-  async stop(): Promise<void> {
-    Logger.log('[JobQueue] Stopping queue processing after current job');
-    this.processing = false;
-
-    // Wait for current job to complete
-    while (this.processing) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-  }
+/**
+ * Factory function to create appropriate queue implementation
+ * Can be extended to support different queue backends (Redis, RabbitMQ, etc.)
+ */
+export async function createJobQueue(
+  processor: JobProcessor,
+  processingDelay?: number,
+  maxRetries?: number
+): Promise<QueueInterface> {
+  // For now, return in-memory implementation
+  // Future: Could check environment and return Redis-based queue, etc.
+  return new JobQueue(processor, processingDelay, maxRetries);
 }
